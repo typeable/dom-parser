@@ -8,11 +8,13 @@ module Text.XML.DOM.Parser.Class
   , textFromDom
   , stringFromDom
   , charFromDom
+  , readChar
   , intFromDom
   , integerFromDom
   , doubleFromDom
   , fixedFromDom
   , boolFromDom
+  , readBool
   , unitFromDom
   , voidFromDom
   ) where
@@ -20,12 +22,12 @@ module Text.XML.DOM.Parser.Class
 import           Control.Applicative
 import           Control.Lens
 import           Data.Fixed
+import           Data.Monoid
 import           Data.OpenUnion
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Typeable
 import           Data.Void
-import           Text.Shakespeare.Text (st)
 import           Text.XML
 import           Text.XML.DOM.Parser.Combinators
 import           Text.XML.DOM.Parser.Types
@@ -95,16 +97,18 @@ unionFromDom
 unionFromDom _ = fromDom
 
 textFromDom :: (Monad m) => DomParserT Identity m Text
-textFromDom = parseContent pure
+textFromDom = parseContent Right
 
 stringFromDom :: (Monad m) => DomParserT Identity m String
-stringFromDom = parseContent $ pure . T.unpack
+stringFromDom = parseContent $ Right . T.unpack
 
 charFromDom :: (Monad m) => DomParserT Identity m Char
-charFromDom = parseContent $ \t -> case T.unpack $ T.strip t of
-  [c] -> pure c
-  _ -> throwParserError $ PEWrongFormat
-    "Should have exactly one non-blank character"
+charFromDom = parseContent readChar
+
+readChar :: Text -> Either Text Char
+readChar t = case T.unpack $ T.strip t of
+  [c] -> Right c
+  _   -> Left "Should have exactly one non-blank character"
 
 intFromDom :: (Monad m) => DomParserT Identity m Int
 intFromDom = parseContent readContent
@@ -124,16 +128,18 @@ fixedFromDom = parseContent readContent
 -- f, false or 0 for False value. Case is not significant, blank
 -- characters are striped.
 boolFromDom :: (Monad m) => DomParserT Identity m Bool
-boolFromDom = parseContent $ \t ->
+boolFromDom = parseContent readBool
+
+readBool :: Text -> Either Text Bool
+readBool t =
   let
     lowt  = T.toLower $ T.strip t
     tvals = ["y", "yes", "t", "true", "1"]
     fvals = ["n", "no", "f", "false", "0"]
-  in if | lowt `elem` tvals -> return True
-        | lowt `elem` fvals -> return False
+  in if | lowt `elem` tvals -> Right True
+        | lowt `elem` fvals -> Right False
         | otherwise         ->
-          let msg = [st|Could not read "#{t}" as Bool|]
-          in throwParserError $ PEWrongFormat msg
+            Left $ "Could not read " <> t <> " as Bool"
 
 -- | Always successfully parses any DOM to @()@
 unitFromDom :: (Monad m) => DomParserT Identity m  ()

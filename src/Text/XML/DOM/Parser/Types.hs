@@ -1,8 +1,10 @@
 module Text.XML.DOM.Parser.Types
   ( -- * Parser internals
-    ParserError(..)
+    DomPath
+  , ParserError(..)
   , pePath
   , peDetails
+  , peAttributeName
   , ParserErrors(..)
   , _ParserErrors
   , ParserData(..)
@@ -31,28 +33,43 @@ import           GHC.Generics (Generic)
 import           Text.XML
 import           Text.XML.Lens
 
+type DomPath = [Text]
+
 -- | DOM parser error description.
 data ParserError
   -- | Tag not found which should be.
   = PENotFound
-    { _pePath :: [Text]
+    { _pePath :: DomPath
     }
 
   -- | Tag contents has wrong format, (could not read text to value)
   | PEWrongFormat
     { _peDetails :: Text
-    , _pePath    :: [Text]     -- ^ path of element
+    , _pePath    :: DomPath     -- ^ path of element
+    }
+
+  -- | Could not parse attribute
+  | PEAttributeWrongFormat
+    { _peAttributeName :: Text
+    , _peDetails       :: Text
+    , _pePath          :: DomPath
     }
 
   -- | Node should have text content, but it does not.
   | PEContentNotFound
-    { _pePath :: [Text]
+    { _pePath :: DomPath
+    }
+
+  -- | Expected attribute but not found
+  | PEAttributeNotFound
+    { _peAttributeName :: Text
+    , _pePath          :: DomPath
     }
 
   -- | Some other error
   | PEOther
     { _peDetails :: Text
-    , _pePath    :: [Text]
+    , _pePath    :: DomPath
     } deriving (Eq, Ord, Show, Generic)
 
 makeLenses ''ParserError
@@ -86,7 +103,7 @@ data ParserData f = ParserData
     { _pdElements :: f Element
       -- ^ Current element(s). Functor is intended to be either @Identity@ or
       -- @[]@
-    , _pdPath     :: [Text]
+    , _pdPath     :: DomPath
       -- ^ Path for error reporting
     }
 

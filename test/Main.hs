@@ -27,8 +27,15 @@ testStructureFromDom = do
   tsBools <- inElemNe "bool" boolFromDom
   return TestStructure{..}
 
-instance FromDom TestStructure where
-  fromDom = testStructureFromDom
+testStructureAttributes :: (Monad m) => DomParserT Identity m TestStructure
+testStructureAttributes = do
+  name <- getCurrentName
+  int <- parseAttribute "int" readContent
+  bool <- parseAttribute "bool" readBool
+  return $ TestStructure
+    { tsName  = name
+    , tsInts  = [int]
+    , tsBools = pure bool }
 
 docStruct :: Document
 docStruct = parseText_ def [lt|
@@ -41,6 +48,13 @@ docStruct = parseText_ def [lt|
 </root>
 |]
 
+docAttrStruct :: Document
+docAttrStruct = parseText_ def [lt|
+<?xml version="1.0" encoding="utf-8"?>
+<structure int="10" bool="t">
+</structure>
+|]
+
 docNone :: Document
 docNone = parseText_ def [lt|
 <?xml version="1.0" encoding="utf-8"?>
@@ -48,8 +62,26 @@ docNone = parseText_ def [lt|
 </root>
 |]
 
-docEmpty :: Document
-docEmpty = parseText_ def [lt|
+docSimpleAttr :: Document
+docSimpleAttr = parseText_ def [lt|
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+<a attr="content"/>
+</root>
+|]
+
+docMultipleAttr :: Document
+docMultipleAttr = parseText_ def [lt|
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+<a attr="content1"/>
+<a attr="content2"/>
+<a attr="content3"/>
+</root>
+|]
+
+docSingleEmpty :: Document
+docSingleEmpty = parseText_ def [lt|
 <?xml version="1.0" encoding="utf-8"?>
 <root>
   <a/>
@@ -176,13 +208,37 @@ specParserFailedPath name doc path parser = it name $ example $ do
 combinationsSpec :: Spec
 combinationsSpec = do
   describe "inElem" $ do
-    let parser = inElem "a" textFromDom
     describe "succeeds" $ do
-      specParserEq "docSimple" docSimple "content" parser
-      specParserEq "docMultiple" docMultiple "content1" parser
+      describe "simple" $ do
+        let parser = inElem "a" textFromDom
+        specParserEq "docSimple" docSimple "content" parser
+        specParserEq "docMultiple" docMultiple "content1" parser
+      describe "deep" $ do
+        let parser = inElem "a" $ inElem "b" textFromDom
+        specParserEq "docDeep" docDeep "content" parser
+        specParserEq "docDeepMultiple1" docDeepMultiple1 "content1" parser
+        specParserEq "docDeepWithContent" docDeepWithContent "content" parser
     describe "fails" $ do
-      specParserFailed "docNone" docNone parser
-      specParserFailed "docEmpty" docEmpty parser
+      describe "simple" $ do
+        let parser = inElem "a" textFromDom
+        specParserFailed "docNone" docNone parser
+        specParserFailed "docSingleEmpty" docSingleEmpty parser
+      describe "deep" $ do
+        let parser = inElem "a" $ inElem "b" textFromDom
+        specParserFailedPath "docDeepMultiple2" docDeepMultiple2
+          ["root", "a", "b"] parser
+        -- should fail here because first tag "a" does not contains
+        -- tag "b" which is expected by parser @inElem "b"@
+
+  describe "parseAttribute" $ do
+    describe "succeeds" $ do
+      specParserEq "docSimpleAttr" docSimpleAttr "content"
+        $ inElem "a" $ parseAttribute "attr" Right
+      let res = ["content1", "content2", "content3"]
+      specParserEq "docMultipleAttr" docMultipleAttr res
+        $ inElemAll "a" $ parseAttribute "attr" Right
+    describe "fails" $ do
+      specParserFailed "docNone" docNone $ parseAttribute "attr" Right
 
   describe "inElemAll" $ do
     let parser = inElemAll "a" textFromDom
@@ -192,7 +248,7 @@ combinationsSpec = do
       specParserEq "docMultiple" docMultiple
         ["content1", "content2", "content3"] parser
     describe "fails" $ do
-      specParserFailed "docEmpty" docEmpty parser
+      specParserFailed "docSingleEmpty" docSingleEmpty parser
 
   describe "inElemMay" $ do
     let parser = inElemMay "a" textFromDom
@@ -201,7 +257,7 @@ combinationsSpec = do
       specParserEq "docSimple" docSimple (Just "content") parser
       specParserEq "docMultiple" docMultiple (Just "content1") parser
     describe "fails" $ do
-      specParserFailed "docEmpty" docEmpty parser
+      specParserFailed "docSingleEmpty" docSingleEmpty parser
 
   describe "inElemNe" $ do
     let parser = inElemNe "a" textFromDom
@@ -211,7 +267,7 @@ combinationsSpec = do
         (NE.fromList ["content1", "content2", "content3"]) parser
     describe "fails" $ do
       specParserFailed "docNone" docNone parser
-      specParserFailed "docEmpty" docEmpty parser
+      specParserFailed "docSingleEmpty" docSingleEmpty parser
 
   describe "diveElem" $ do
     describe "single element" $ do
@@ -234,7 +290,7 @@ combinationsSpec = do
     describe "mandatory element" $ do
       let parser = inElem "a" $ ignoreEmpty textFromDom
       describe "succeeds" $ do
-        specParserEq "docEmpty" docEmpty Nothing parser
+        specParserEq "docSingleEmpty" docSingleEmpty Nothing parser
         specParserEq "docSimple" docSimple (Just "content") parser
         specParserEq "docMultiple" docMultiple (Just "content1") parser
       describe "fails" $ do
@@ -243,7 +299,7 @@ combinationsSpec = do
       let parser = fmap join $ inElemMay "a" $ ignoreEmpty textFromDom
       describe "succeeds" $ do
         specParserEq "docNone" docNone Nothing parser
-        specParserEq "docEmpty" docEmpty Nothing parser
+        specParserEq "docSingleEmpty" docSingleEmpty Nothing parser
         specParserEq "docSimple" docSimple (Just "content") parser
         specParserEq "docMultiple" docMultiple (Just "content1") parser
 
@@ -271,14 +327,25 @@ contentSpec = do
 structSpec :: Spec
 structSpec = do
   describe "succeeds" $ do
-    let
-      result = TestStructure
-                 { tsName = "name"
-                 , tsInts = [1,2]
-                 , tsBools = pure True }
-    specParserEq "docStruct" docStruct result fromDom
+    describe "dom structure" $ do
+      let
+        result = TestStructure
+          { tsName = "name"
+          , tsInts = [1,2]
+          , tsBools = pure True }
+      specParserEq "docStruct" docStruct result testStructureFromDom
+    describe "attribute structure" $ do
+      let
+        result = TestStructure
+          { tsName = "structure"
+          , tsInts = [10]
+          , tsBools = pure True }
+      specParserEq "docAttrStruct" docAttrStruct result testStructureAttributes
   describe "fails" $ do
-    specParserFailed "docSimple" docSimple testStructureFromDom
+    describe "dom structure" $ do
+      specParserFailed "docSimple" docSimple testStructureFromDom
+    describe "attr structure" $ do
+      specParserFailed "docNone" docNone testStructureAttributes
 
 main :: IO ()
 main = hspec $ do

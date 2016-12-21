@@ -15,24 +15,32 @@ module Text.XML.DOM.Parser.Combinators
   , ignoreElem
   , ignoreEmpty
   , ignoreBlank
-    -- * Checking current element properties
+    -- * Getting current element's properties
+  , getCurrentName
+  , getCurrentContent
+  , getCurrentAttributes
+  , getCurrentAttribute
+    -- * Current element's checks
   , checkCurrentName
-    -- * Parsing arbitrary content
+    -- * Parsing element's content
   , parseContent
   , readContent
+  , maybeReadContent
+    -- * Parsing attributes
+  , parseAttribute
   ) where
 
 import           Control.Lens
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.Map.Strict as M
 import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Traversable
 import           Data.Typeable
 import           Text.Read
-import           Text.Shakespeare.Text (st)
 import           Text.XML
 import           Text.XML.DOM.Parser.Types
 import           Text.XML.Lens
@@ -41,8 +49,10 @@ import           Text.XML.Lens
 -- | Generic function to traverse arbitrary inner cursors.
 traverseElems
   :: (Monad m, Foldable g, Traversable f)
-  => ([Element] -> DomParserT g m (f ([Text], Element)))
-     -- ^ Takes set of current elements and
+  => ([Element] -> DomParserT g m (f (DomPath, Element)))
+     -- ^ Takes list of current elements and returns container with
+     -- pairs of subpath (relatively to current element) and element
+     -- to run parser in
   -> DomParserT Identity m a
      -- ^ Parser will be runned for each element found in traversable
   -> DomParserT g m (f a)
@@ -53,12 +63,13 @@ traverseElems trav parser = do
     let newpd = ParserData
           { _pdElements = Identity e
           , _pdPath     = pd ^. pdPath <> subpath }
-    magnify (to $ const newpd) parser
+    magnify (to $ const newpd) parser -- type of reader is changed, so
+                                      -- local does not work
 
 -- | Takes function filtering
 inFilteredTrav
   :: (Monad m, Foldable g, DomTraversable f)
-  => ([Element] -> ([Text], [Element]))
+  => ([Element] -> (DomPath, [Element]))
    -- ^ Function returning some filtered elements with path suffixes which will
    -- be appended to parser's state
   -> DomParserT Identity m a
@@ -160,7 +171,7 @@ ignoreElem
   :: (Monad m)
   => (Element -> Bool)
      -- ^ Predicate checking that we must ignore some current tag. If returns
-     -- true then parser will not be runned and combinator just returns Nothing.
+     -- 'True' then parser will not be runned and combinator just returns Nothing.
   -> DomParserT Identity m a
   -> DomParserT Identity m (Maybe a)
 ignoreElem test parser = do
@@ -195,6 +206,10 @@ ignoreBlank = ignoreElem test
             | T.null $ T.strip cont -> True
             | otherwise             -> False
 
+-- | Returns name of current element.
+getCurrentName :: (Monad m) => DomParserT Identity m Text
+getCurrentName = view $ pdElements . to runIdentity . localName
+
 -- | If name of current tag differs from first argument throws 'PENotFound' with
 -- tag name replaced in last path's segment. Usefull for checking root
 -- document's element name.
@@ -203,37 +218,82 @@ checkCurrentName
   => Text
   -> DomParserT Identity m ()
 checkCurrentName n = do
-  cn <- view $ pdElements . to runIdentity . localName
+  cn <- getCurrentName
   unless (cn == n) $ do
     p <- view pdPath
     let pinit = if null p then [] else init p
     throwError $ ParserErrors [PENotFound $ pinit ++ [n]]
   return ()
 
--- | Parses content inside current tag. It expects current element set consists
--- of exactly ONE element. Throws error if current elements set contains
--- multiple of them.
+-- | Get current content. If current element contains no content or
+-- have inner elements then Nothing returned
+getCurrentContent :: (Monad m) => DomParserT Identity m (Maybe Text)
+getCurrentContent = do
+  nds <- view $ pdElements . to runIdentity . nodes
+  let
+    els :: [Element]
+    els = nds ^.. folded . _Element
+    conts :: [Text]
+    conts = nds ^.. folded . _Content
+  return $ if
+    | not $ null els -> Nothing
+    | null conts     -> Nothing
+    | otherwise      -> Just $ mconcat conts
+
+-- | Parses content inside current tag. It expects current element set
+-- consists of exactly ONE element. If current element does not
+-- contains content or have other elements as childs then throws error
 parseContent
   :: (Monad m)
-  => (Text -> DomParserT Identity m a)
+  => (Text -> Either Text a)
+     -- ^ Content parser, return error msg if value is not parsed
   -> DomParserT Identity m a
-parseContent parse = do
-  e <- view $ pdElements . to runIdentity
-  let
-    nds = e ^. nodes
-    els = nds ^.. folded . _Element
-    conts = nds ^.. folded . _Content
-  when (not $ null els) $ throwParserError PEContentNotFound
-  when (null conts) $ throwParserError PEContentNotFound
-  parse $ mconcat conts
+parseContent parse = getCurrentContent >>= \case
+  Nothing -> throwParserError PEContentNotFound
+  Just c  -> case parse c of
+    Left e  -> throwParserError $ PEWrongFormat e
+    Right a -> return a
 
-readContent
-  :: forall m g a
-   . (Read a, Typeable a, Monad m)
-  => Text
-  -> DomParserT g m a
-readContent t = case readMaybe $ T.unpack t of
-  Nothing -> throwParserError $ PEWrongFormat [st|Not readable #{n}: #{t}|]
-  Just a  -> pure a
+maybeReadContent
+  :: forall a
+   . (Typeable a)
+  => (Text -> Maybe a)
+   -- ^ Content or attribute reader
+  -> Text
+   -- ^ Content or attribute value
+  -> Either Text a
+maybeReadContent f t = maybe (Left msg) Right $ f t
   where
-    n = show $ typeRep (Proxy :: Proxy a)
+    msg = "Not readable " <> n <> ": " <> t
+    n = T.pack $ show $ typeRep (Proxy :: Proxy a)
+
+-- | Tries to read given text to value using 'Read'. Usefull to use
+-- with 'parseContent' and 'parseAttribute'
+readContent
+  :: (Read a, Typeable a)
+  => Text
+  -> Either Text a
+readContent = maybeReadContent $ readMaybe . T.unpack . T.strip
+
+getCurrentAttributes :: (Monad m) => DomParserT Identity m (M.Map Name Text)
+getCurrentAttributes = view $ pdElements . to runIdentity . attrs
+
+getCurrentAttribute :: (Monad m) => Text -> DomParserT Identity m (Maybe Text)
+getCurrentAttribute attrName'
+  = preview $ pdElements . to runIdentity . attr attrName
+  where
+    attrName = Name attrName' Nothing Nothing
+
+-- | Parses attribute with given name, throws error if attribute is not found.
+parseAttribute
+  :: (Monad m)
+  => Text
+     -- ^ Attribute name
+  -> (Text -> Either Text a)
+     -- ^ Attribute content parser
+  -> DomParserT Identity m a
+parseAttribute attrName parser = getCurrentAttribute attrName >>= \case
+  Nothing   -> throwParserError $ PEAttributeNotFound attrName
+  Just aval -> case parser aval of
+    Left err -> throwParserError $ PEAttributeWrongFormat attrName err
+    Right a  -> return a
