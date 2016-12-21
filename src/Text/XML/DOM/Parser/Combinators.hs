@@ -207,6 +207,8 @@ ignoreBlank = ignoreElem test
             | otherwise             -> False
 
 -- | Returns name of current element.
+--
+-- @since 1.0.0
 getCurrentName :: (Monad m) => DomParserT Identity m Text
 getCurrentName = view $ pdElements . to runIdentity . localName
 
@@ -227,6 +229,8 @@ checkCurrentName n = do
 
 -- | Get current content. If current element contains no content or
 -- have inner elements then Nothing returned
+--
+-- @since 1.0.0
 getCurrentContent :: (Monad m) => DomParserT Identity m (Maybe Text)
 getCurrentContent = do
   nds <- view $ pdElements . to runIdentity . nodes
@@ -254,6 +258,10 @@ parseContent parse = getCurrentContent >>= \case
     Left e  -> throwParserError $ PEWrongFormat e
     Right a -> return a
 
+-- | If reader returns 'Nothing' then resulting function returns 'Left
+-- "error message"'
+--
+-- @since 1.0.0
 maybeReadContent
   :: forall a
    . (Typeable a)
@@ -275,9 +283,15 @@ readContent
   -> Either Text a
 readContent = maybeReadContent $ readMaybe . T.unpack . T.strip
 
+-- | Retuns map of attributes of current element
+--
+-- @since 1.0.0
 getCurrentAttributes :: (Monad m) => DomParserT Identity m (M.Map Name Text)
 getCurrentAttributes = view $ pdElements . to runIdentity . attrs
 
+-- | Returns element with given name or 'Nothing'
+--
+-- @since 1.0.0
 getCurrentAttribute :: (Monad m) => Text -> DomParserT Identity m (Maybe Text)
 getCurrentAttribute attrName'
   = preview $ pdElements . to runIdentity . attr attrName
@@ -285,6 +299,8 @@ getCurrentAttribute attrName'
     attrName = Name attrName' Nothing Nothing
 
 -- | Parses attribute with given name, throws error if attribute is not found.
+--
+-- @since 1.0.0
 parseAttribute
   :: (Monad m)
   => Text

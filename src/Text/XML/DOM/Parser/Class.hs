@@ -105,6 +105,9 @@ stringFromDom = parseContent $ Right . T.unpack
 charFromDom :: (Monad m) => DomParserT Identity m Char
 charFromDom = parseContent readChar
 
+-- | Expects text to be single character
+--
+-- @since 1.0.0
 readChar :: Text -> Either Text Char
 readChar t = case T.unpack $ T.strip t of
   [c] -> Right c
@@ -130,6 +133,7 @@ fixedFromDom = parseContent readContent
 boolFromDom :: (Monad m) => DomParserT Identity m Bool
 boolFromDom = parseContent readBool
 
+-- | @since 1.0.0
 readBool :: Text -> Either Text Bool
 readBool t =
   let
