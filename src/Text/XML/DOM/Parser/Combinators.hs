@@ -179,7 +179,7 @@ ignoreElem test parser = do
   if ign then pure Nothing else Just <$> parser
 
 -- | If current element has no children nodes does not run parser and returns
--- Nothing. Otherwise runs parser inside current element. Usefull when you got
+-- Nothing. Otherwise runs parser inside current element. Useful when you got
 -- XML with strange empty elements which must be just ignored, but `inElem` runs
 -- parser inside of this elements which causes to parser error.
 ignoreEmpty
@@ -213,7 +213,7 @@ getCurrentName :: (Monad m) => DomParserT Identity m Text
 getCurrentName = view $ pdElements . to runIdentity . localName
 
 -- | If name of current tag differs from first argument throws 'PENotFound' with
--- tag name replaced in last path's segment. Usefull for checking root
+-- tag name replaced in last path's segment. Useful for checking root
 -- document's element name.
 checkCurrentName
   :: (Monad m)
@@ -275,7 +275,7 @@ maybeReadContent f t = maybe (Left msg) Right $ f t
     msg = "Not readable " <> n <> ": " <> t
     n = T.pack $ show $ typeRep (Proxy :: Proxy a)
 
--- | Tries to read given text to value using 'Read'. Usefull to use
+-- | Tries to read given text to value using 'Read'. Useful to use
 -- with 'parseContent' and 'parseAttribute'
 readContent
   :: (Read a, Typeable a)
