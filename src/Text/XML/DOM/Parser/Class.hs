@@ -17,6 +17,7 @@ module Text.XML.DOM.Parser.Class
   , readBool
   , unitFromDom
   , voidFromDom
+  , scientificFromDom
   ) where
 
 import           Control.Applicative
@@ -24,6 +25,7 @@ import           Control.Lens
 import           Data.Fixed
 import           Data.Monoid
 import           Data.OpenUnion
+import           Data.Scientific
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Typeable
@@ -77,12 +79,13 @@ instance FromDom Bool where
 instance FromDom (Union '[]) where
   fromDom = empty
 
-instance ( Typeable a, FromDom a, FromDom (Union as)
-         , SubList as (a ': as) )
-         => FromDom (Union (a ': as)) where
+instance
+  ( Typeable a, FromDom a, FromDom (Union as)
+  , SubList as (a ': as) )
+  => FromDom (Union (a ': as)) where
   -- fromDom :: forall m. (DomParserMonad m) => m a
   fromDom = (liftUnion <$> (proxyFromDom (Proxy :: Proxy a)))
-        <|> (reUnion <$> (proxyFromDom (Proxy :: Proxy (Union as))))
+    <|> (reUnion <$> (proxyFromDom (Proxy :: Proxy (Union as))))
 
 instance FromDom Element where
   fromDom = elementFromDom
@@ -127,6 +130,9 @@ fixedFromDom
   => DomParserT Identity m (Fixed a)
 fixedFromDom = parseContent readContent
 
+scientificFromDom :: Monad m => DomParserT Identity m Scientific
+scientificFromDom = parseContent readContent
+
 -- | Expects content to be y, yes, t, true or 1 for True value. n, no,
 -- f, false or 0 for False value. Case is not significant, blank
 -- characters are striped.
@@ -140,10 +146,11 @@ readBool t =
     lowt  = T.toLower $ T.strip t
     tvals = ["y", "yes", "t", "true", "1"]
     fvals = ["n", "no", "f", "false", "0"]
-  in if | lowt `elem` tvals -> Right True
-        | lowt `elem` fvals -> Right False
-        | otherwise         ->
-            Left $ "Could not read " <> t <> " as Bool"
+  in if
+    | lowt `elem` tvals -> Right True
+    | lowt `elem` fvals -> Right False
+    | otherwise         ->
+        Left $ "Could not read " <> t <> " as Bool"
 
 -- | Always successfully parses any DOM to @()@
 unitFromDom :: (Monad m) => DomParserT Identity m  ()

@@ -60,11 +60,12 @@ traverseElems trav parser = do
   pd <- ask
   inner <- trav $ pd ^.. pdElements . folded
   for inner $ \(subpath, e) -> do
-    let newpd = ParserData
-          { _pdElements = Identity e
-          , _pdPath     = pd ^. pdPath <> subpath }
-    magnify (to $ const newpd) parser -- type of reader is changed, so
-                                      -- local does not work
+    let
+      newpd = ParserData
+        { _pdElements = Identity e
+        , _pdPath     = pd ^. pdPath <> subpath }
+    -- type of reader has been changed, local won't work here
+    magnify (to $ const newpd) parser
 
 -- | Takes function filtering
 inFilteredTrav
