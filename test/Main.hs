@@ -156,7 +156,7 @@ specParser
   :: String                     -- ^ Name of spec
   -> Document                   -- ^ Document to parse
   -> (a -> Maybe String)        -- ^ Value checker, Nothing if all ok
-  -> DomParser Identity a                -- ^ Parser itself
+  -> DomParser Identity a       -- ^ Parser itself
   -> Spec
 specParser name doc check parser = it name $ do
   result <- either throwIO return $ runDomParser doc parser
@@ -166,9 +166,9 @@ specParser name doc check parser = it name $ do
 
 specParserEq
   :: (Eq a, Show a)
-  => String            -- ^ Name of spec
-  -> Document          -- ^ Document to parse
-  -> a                 -- ^ Value parser should return
+  => String                     -- ^ Name of spec
+  -> Document                   -- ^ Document to parse
+  -> a                          -- ^ Value parser should return
   -> DomParser Identity a       -- ^ Parser itself
   -> Spec
 specParserEq name doc a parser = specParser name doc check parser

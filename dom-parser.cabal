@@ -47,7 +47,8 @@ library
                      , containers
                      , lens
                      , mtl
-                     , open-union
+                     , open-union >= 0.2
+                     , scientific
                      , semigroups
                      , text
                      , transformers
