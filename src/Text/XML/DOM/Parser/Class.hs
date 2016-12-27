@@ -73,6 +73,9 @@ instance FromDom Double where
 instance (HasResolution a, Typeable a) => FromDom (Fixed a) where
   fromDom = fixedFromDom
 
+instance FromDom Scientific where
+  fromDom = scientificFromDom
+
 instance FromDom Bool where
   fromDom = boolFromDom
 
