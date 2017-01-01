@@ -18,22 +18,23 @@ module Text.XML.DOM.Parser.Class
   , unitFromDom
   , voidFromDom
   , scientificFromDom
+    -- * FromAttribute
+  , FromAttribute(..)
   ) where
 
-import           Control.Applicative
-import           Control.Lens
-import           Data.Fixed
-import           Data.Monoid
-import           Data.OpenUnion
-import           Data.Scientific
-import           Data.Text (Text)
-import qualified Data.Text as T
-import           Data.Typeable
-import           Data.Void
-import           Text.XML
-import           Text.XML.DOM.Parser.Combinators
-import           Text.XML.DOM.Parser.Types
-import           TypeFun.Data.List hiding (Union)
+import Control.Applicative
+import Control.Lens
+import Data.Fixed
+import Data.Monoid
+import Data.OpenUnion
+import Data.Scientific
+import Data.Text as T hiding (empty)
+import Data.Typeable
+import Data.Void
+import Text.XML
+import Text.XML.DOM.Parser.Combinators
+import Text.XML.DOM.Parser.Types
+import TypeFun.Data.List hiding (Union)
 
 proxyFromDom
   :: forall proxy m a
@@ -162,3 +163,27 @@ unitFromDom = pure ()
 -- | Never parses successfully. It is just 'mzero'
 voidFromDom :: (Monad m) => DomParserT Identity m  Void
 voidFromDom = empty
+
+class FromAttribute a where
+  fromAttribute :: Text -> Either Text a
+
+instance FromAttribute () where
+  fromAttribute _ = Right ()
+
+instance FromAttribute Text where
+  fromAttribute = Right
+
+instance FromAttribute Char where
+  fromAttribute = readChar
+
+instance FromAttribute Int where
+  fromAttribute = readContent
+
+instance FromAttribute Integer where
+  fromAttribute = readContent
+
+instance (Typeable a, HasResolution a) => FromAttribute (Fixed a) where
+  fromAttribute = readContent
+
+instance FromAttribute Scientific where
+  fromAttribute = readContent

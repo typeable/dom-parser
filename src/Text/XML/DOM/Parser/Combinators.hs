@@ -28,6 +28,7 @@ module Text.XML.DOM.Parser.Combinators
   , maybeReadContent
     -- * Parsing attributes
   , parseAttribute
+  , parseAttributeMaybe
   ) where
 
 import           Control.Lens
@@ -309,8 +310,24 @@ parseAttribute
   -> (Text -> Either Text a)
      -- ^ Attribute content parser
   -> DomParserT Identity m a
-parseAttribute attrName parser = getCurrentAttribute attrName >>= \case
-  Nothing   -> throwParserError $ PEAttributeNotFound attrName
-  Just aval -> case parser aval of
-    Left err -> throwParserError $ PEAttributeWrongFormat attrName err
-    Right a  -> return a
+parseAttribute attrName parser =
+  parseAttributeMaybe attrName parser >>= \case
+    Nothing -> throwParserError $ PEAttributeNotFound attrName
+    Just a  -> return a
+
+-- | Parses attribute with given name.
+--
+-- @since 1.0.0
+parseAttributeMaybe
+  :: (Monad m)
+  => Text
+     -- ^ Attribute name
+  -> (Text -> Either Text a)
+     -- ^ Attribute content parser
+  -> DomParserT Identity m (Maybe a)
+parseAttributeMaybe attrName parser =
+  getCurrentAttribute attrName >>= \case
+    Nothing   -> return Nothing
+    Just aval -> case parser aval of
+      Left err -> throwParserError $ PEAttributeWrongFormat attrName err
+      Right a  -> return $ Just a
