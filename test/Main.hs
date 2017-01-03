@@ -193,7 +193,7 @@ specParserFailedPath
   :: (Show a)
   => String                     -- ^ Name of spec
   -> Document
-  -> [Text]                     -- ^ Expteced path in error
+  -> DomPath                     -- ^ Expteced path in error
   -> DomParser Identity a
   -> Spec
 specParserFailedPath name doc path parser = it name $ example $ do
@@ -226,7 +226,7 @@ combinationsSpec = do
       describe "deep" $ do
         let parser = inElem "a" $ inElem "b" textFromDom
         specParserFailedPath "docDeepMultiple2" docDeepMultiple2
-          ["root", "a", "b"] parser
+          (DomPath ["root", "a", "b"]) parser
         -- should fail here because first tag "a" does not contains
         -- tag "b" which is expected by parser @inElem "b"@
 
@@ -276,7 +276,7 @@ combinationsSpec = do
         specParserEq "docDeepMultiple1" docDeepMultiple1 "content1" parser
         specParserEq "docDeepMultiple2" docDeepMultiple2 "content1" parser
       describe "fails" $ do
-        specParserFailedPath "docSimple" docSimple ["root", "a", "b"] parser
+        specParserFailedPath "docSimple" docSimple (DomPath ["root", "a", "b"]) parser
     describe "multiple elements" $ do
       let
         parser = diveElem "a" $ inElemAll "b" textFromDom
@@ -311,9 +311,9 @@ combinationsSpec = do
         inElem "a" $ do
           checkCurrentName "a"
     describe "fails" $ do
-      specParserFailedPath "root element" docSimple ["toor"] $ do
+      specParserFailedPath "root element" docSimple (DomPath ["toor"]) $ do
         checkCurrentName "toor"
-      specParserFailedPath "inner element" docSimple ["root", "b"] $ do
+      specParserFailedPath "inner element" docSimple (DomPath ["root", "b"]) $ do
         inElem "a" $ checkCurrentName "b"
 
 contentSpec :: Spec

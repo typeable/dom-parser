@@ -91,7 +91,7 @@ inElemTrav
   -> DomParserT g m (f a)
 inElemTrav n = inFilteredTrav deeper
   where
-    deeper = ([n],) . toListOf (folded . nodes . folded . _Element . ell n)
+    deeper = (DomPath [n],) . toListOf (folded . nodes . folded . _Element . ell n)
 
 -- | Runs parser inside first children element with given name
 inElem
@@ -149,7 +149,7 @@ in given path.
 divePath
   :: forall m g a
    . (Monad m, Foldable g)
-  => [Text]
+  => DomPath
   -> DomParserT [] m a
   -> DomParserT g m a
 divePath path = magnify $ to modElems
@@ -158,7 +158,7 @@ divePath path = magnify $ to modElems
       = over pdElements (toListOf $ folded . diver)
       . over pdPath (<> path)
     diver :: Fold Element Element
-    diver    = foldr (.) id $ map toDive path
+    diver    = foldr (.) id $ map toDive $ unDomPath path
     toDive n = nodes . folded . _Element . ell n
 
 diveElem
@@ -166,7 +166,7 @@ diveElem
   => Text
   -> DomParserT [] m a
   -> DomParserT g m a
-diveElem p = divePath [p]
+diveElem p = divePath $ DomPath [p]
 
 -- | Ignore arbitrary current element if it conforms to predicate.
 ignoreElem
@@ -225,8 +225,8 @@ checkCurrentName n = do
   cn <- getCurrentName
   unless (cn == n) $ do
     p <- view pdPath
-    let pinit = if null p then [] else init p
-    throwError $ ParserErrors [PENotFound $ pinit ++ [n]]
+    let pinit = if null (unDomPath p) then [] else init $ unDomPath p
+    throwError $ ParserErrors [PENotFound $ DomPath $ pinit ++ [n]]
   return ()
 
 -- | Get current content. If current element contains no content or

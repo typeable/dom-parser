@@ -1,6 +1,6 @@
 module Text.XML.DOM.Parser.Types
   ( -- * Parser internals
-    DomPath
+    DomPath(..)
   , ParserError(..)
   , pePath
   , peDetails
@@ -21,19 +21,20 @@ module Text.XML.DOM.Parser.Types
   , throwWrongFormat
   ) where
 
-import           Control.Exception
-import           Control.Lens
-import           Control.Monad.Except
-import           Control.Monad.Reader
-import           Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as NE
-import           Data.Maybe
-import           Data.Text (Text)
-import           GHC.Generics (Generic)
-import           Text.XML
-import           Text.XML.Lens
+import Control.Exception
+import Control.Lens
+import Control.Monad.Except
+import Control.Monad.Reader
+import Data.List.NonEmpty as NE
+import Data.Maybe
+import Data.Text (Text)
+import GHC.Generics (Generic)
+import Text.XML
+import Text.XML.Lens
 
-type DomPath = [Text]
+newtype DomPath = DomPath
+  { unDomPath :: [Text]
+  } deriving (Eq, Ord, Show, Read, Monoid)
 
 -- | DOM parser error description.
 data ParserError
@@ -121,7 +122,7 @@ runDomParserT
 runDomParserT doc par =
   let pd = ParserData
         { _pdElements = doc ^. root . to pure
-        , _pdPath     = [doc ^. root . localName]
+        , _pdPath     = DomPath [doc ^. root . localName]
         }
   in runExceptT $ runReaderT par pd
 
@@ -152,11 +153,11 @@ instance DomTraversable NonEmpty where
 
 throwParserError
   :: (MonadError ParserErrors m, MonadReader (ParserData f) m)
-  => ([Text] -> ParserError)
+  => (DomPath -> ParserError)
   -> m a
 throwParserError mkerr = do
   path <- view pdPath
-  throwError $ ParserErrors [mkerr path]
+  throwError $ ParserErrors $ [mkerr path]
 
 -- | Throw 'PEWrongFormat' as very common case
 throwWrongFormat
