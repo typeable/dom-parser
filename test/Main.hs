@@ -33,7 +33,7 @@ testStructureAttributes = do
   int <- parseAttribute "int" readContent
   bool <- parseAttribute "bool" readBool
   return $ TestStructure
-    { tsName  = name
+    { tsName  = nameLocalName name
     , tsInts  = [int]
     , tsBools = pure bool }
 

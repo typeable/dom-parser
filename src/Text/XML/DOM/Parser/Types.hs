@@ -33,8 +33,8 @@ import Text.XML
 import Text.XML.Lens
 
 newtype DomPath = DomPath
-  { unDomPath :: [Text]
-  } deriving (Eq, Ord, Show, Read, Monoid)
+  { unDomPath :: [Name]
+  } deriving (Eq, Ord, Show, Monoid)
 
 -- | DOM parser error description.
 data ParserError
@@ -51,7 +51,7 @@ data ParserError
 
   -- | Could not parse attribute
   | PEAttributeWrongFormat
-    { _peAttributeName :: Text
+    { _peAttributeName :: Name
     , _peDetails       :: Text
     , _pePath          :: DomPath
     }
@@ -63,7 +63,7 @@ data ParserError
 
   -- | Expected attribute but not found
   | PEAttributeNotFound
-    { _peAttributeName :: Text
+    { _peAttributeName :: Name
     , _pePath          :: DomPath
     }
 
@@ -122,7 +122,7 @@ runDomParserT
 runDomParserT doc par =
   let pd = ParserData
         { _pdElements = doc ^. root . to pure
-        , _pdPath     = DomPath [doc ^. root . localName]
+        , _pdPath     = DomPath [doc ^. root . name]
         }
   in runExceptT $ runReaderT par pd
 

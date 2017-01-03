@@ -165,7 +165,11 @@ voidFromDom :: (Monad m) => DomParserT Identity m  Void
 voidFromDom = empty
 
 class FromAttribute a where
-  fromAttribute :: Text -> Either Text a
+  fromAttribute
+    :: Text
+    -- ^ Attribute contents to parse
+    -> Either Text a
+    -- ^ Either error message or result
 
 instance FromAttribute () where
   fromAttribute _ = Right ()

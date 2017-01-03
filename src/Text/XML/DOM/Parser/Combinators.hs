@@ -86,38 +86,38 @@ inFilteredTrav deeper = traverseElems trav
 
 inElemTrav
   :: (Monad m, Foldable g, DomTraversable f)
-  => Text
+  => Name                       -- ^ Name of tag to traverse in
   -> DomParserT Identity m a
   -> DomParserT g m (f a)
 inElemTrav n = inFilteredTrav deeper
   where
-    deeper = (DomPath [n],) . toListOf (folded . nodes . folded . _Element . ell n)
+    deeper = (DomPath [n],) . toListOf (folded . nodes . folded . _Element . el n)
 
 -- | Runs parser inside first children element with given name
 inElem
   :: (Monad m, Foldable g)
-  => Text
+  => Name
   -> DomParserT Identity m a
   -> DomParserT g m a
 inElem n = fmap runIdentity . inElemTrav n
 
 inElemAll
   :: (Monad m, Foldable g)
-  => Text
+  => Name
   -> DomParserT Identity m a
   -> DomParserT g m [a]
 inElemAll = inElemTrav
 
 inElemMay
   :: (Monad m, Foldable g)
-  => Text
+  => Name
   -> DomParserT Identity m a
   -> DomParserT g m (Maybe a)
 inElemMay = inElemTrav
 
 inElemNe
   :: (Monad m, Foldable g)
-  => Text
+  => Name
   -> DomParserT Identity m a
   -> DomParserT g m (NonEmpty a)
 inElemNe = inElemTrav
@@ -159,11 +159,11 @@ divePath path = magnify $ to modElems
       . over pdPath (<> path)
     diver :: Fold Element Element
     diver    = foldr (.) id $ map toDive $ unDomPath path
-    toDive n = nodes . folded . _Element . ell n
+    toDive n = nodes . folded . _Element . el n
 
 diveElem
   :: (Monad m, Foldable g)
-  => Text
+  => Name
   -> DomParserT [] m a
   -> DomParserT g m a
 diveElem p = divePath $ DomPath [p]
@@ -211,15 +211,15 @@ ignoreBlank = ignoreElem test
 -- | Returns name of current element.
 --
 -- @since 1.0.0
-getCurrentName :: (Monad m) => DomParserT Identity m Text
-getCurrentName = view $ pdElements . to runIdentity . localName
+getCurrentName :: (Monad m) => DomParserT Identity m Name
+getCurrentName = view $ pdElements . to runIdentity . name
 
 -- | If name of current tag differs from first argument throws 'PENotFound' with
 -- tag name replaced in last path's segment. Useful for checking root
 -- document's element name.
 checkCurrentName
   :: (Monad m)
-  => Text
+  => Name
   -> DomParserT Identity m ()
 checkCurrentName n = do
   cn <- getCurrentName
@@ -294,18 +294,16 @@ getCurrentAttributes = view $ pdElements . to runIdentity . attrs
 -- | Returns element with given name or 'Nothing'
 --
 -- @since 1.0.0
-getCurrentAttribute :: (Monad m) => Text -> DomParserT Identity m (Maybe Text)
-getCurrentAttribute attrName'
+getCurrentAttribute :: (Monad m) => Name -> DomParserT Identity m (Maybe Text)
+getCurrentAttribute attrName
   = preview $ pdElements . to runIdentity . attr attrName
-  where
-    attrName = Name attrName' Nothing Nothing
 
 -- | Parses attribute with given name, throws error if attribute is not found.
 --
 -- @since 1.0.0
 parseAttribute
   :: (Monad m)
-  => Text
+  => Name
      -- ^ Attribute name
   -> (Text -> Either Text a)
      -- ^ Attribute content parser
@@ -320,7 +318,7 @@ parseAttribute attrName parser =
 -- @since 1.0.0
 parseAttributeMaybe
   :: (Monad m)
-  => Text
+  => Name
      -- ^ Attribute name
   -> (Text -> Either Text a)
      -- ^ Attribute content parser
