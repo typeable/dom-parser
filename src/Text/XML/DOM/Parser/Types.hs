@@ -1,6 +1,14 @@
 module Text.XML.DOM.Parser.Types
-  ( -- * Parser internals
-    DomPath(..)
+  ( -- * Local name
+    NameMatcher(..)
+  , nmMatch
+  , nmShow
+  , matchName
+  , matchLocalName
+  , matchCILocalName
+  , elMatchName
+    -- * Parser internals
+  , DomPath(..)
   , ParserError(..)
   , pePath
   , peDetails
@@ -25,15 +33,58 @@ import Control.Exception
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
+import Data.CaseInsensitive as CI
 import Data.List.NonEmpty as NE
 import Data.Maybe
-import Data.Text (Text)
+import Data.String
+import Data.Text as T
 import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Lens
 
+-- | Arbitrary name matcher. Match name any way you want, but
+-- considered to be used as comparator with some name with some rules
+data NameMatcher = NameMatcher
+  { _nmMatch :: Name -> Bool
+    -- ^ Name matching function, usually should be simple comparsion
+    -- function takin in account only local name or other components
+    -- of 'Name'
+  , _nmShow :: Text
+    -- ^ How to show the name matcher, since there is no 'Read'
+    -- instance we can do it any way we want
+  }
+
+makeLenses ''NameMatcher
+
+instance IsString NameMatcher where
+  fromString = matchCILocalName . T.pack
+
+instance Show NameMatcher where
+  show = T.unpack . _nmShow
+
+matchLocalName :: Text -> NameMatcher
+matchLocalName tname = NameMatcher
+  { _nmMatch = \n -> nameLocalName n == tname
+  , _nmShow  = tname
+  }
+
+matchCILocalName :: Text -> NameMatcher
+matchCILocalName tname = NameMatcher
+  { _nmMatch = \n -> CI.mk (nameLocalName n) == CI.mk tname
+  , _nmShow  = tname
+  }
+
+matchName :: Name -> NameMatcher
+matchName n = NameMatcher
+  { _nmMatch = (== n)
+  , _nmShow  = nameLocalName n
+  }
+
+elMatchName :: NameMatcher -> Traversal' Element Element
+elMatchName nm = filtered (views name $ nm ^. nmMatch)
+
 newtype DomPath = DomPath
-  { unDomPath :: [Name]
+  { unDomPath :: [Text]
   } deriving (Eq, Ord, Show, Monoid)
 
 -- | DOM parser error description.
@@ -51,7 +102,7 @@ data ParserError
 
   -- | Could not parse attribute
   | PEAttributeWrongFormat
-    { _peAttributeName :: Name
+    { _peAttributeName :: NameMatcher
     , _peDetails       :: Text
     , _pePath          :: DomPath
     }
@@ -63,7 +114,7 @@ data ParserError
 
   -- | Expected attribute but not found
   | PEAttributeNotFound
-    { _peAttributeName :: Name
+    { _peAttributeName :: NameMatcher
     , _pePath          :: DomPath
     }
 
@@ -71,7 +122,7 @@ data ParserError
   | PEOther
     { _peDetails :: Text
     , _pePath    :: DomPath
-    } deriving (Eq, Ord, Show, Generic)
+    } deriving (Show, Generic)
 
 makeLenses ''ParserError
 
@@ -79,7 +130,7 @@ instance Exception ParserError
 
 newtype ParserErrors = ParserErrors
   { unParserErrors :: [ParserError]
-  } deriving (Ord, Eq, Show, Monoid, Generic)
+  } deriving (Show, Monoid, Generic)
 
 makePrisms ''ParserErrors
 
@@ -120,10 +171,11 @@ runDomParserT
   -> DomParserT Identity m a
   -> m (Either ParserErrors a)
 runDomParserT doc par =
-  let pd = ParserData
-        { _pdElements = doc ^. root . to pure
-        , _pdPath     = DomPath [doc ^. root . name]
-        }
+  let
+    pd = ParserData
+      { _pdElements = doc ^. root . to pure
+      , _pdPath     = DomPath [doc ^. root . name . to nameLocalName]
+      }
   in runExceptT $ runReaderT par pd
 
 runDomParser

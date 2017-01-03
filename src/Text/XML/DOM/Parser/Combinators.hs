@@ -86,38 +86,38 @@ inFilteredTrav deeper = traverseElems trav
 
 inElemTrav
   :: (Monad m, Foldable g, DomTraversable f)
-  => Name                       -- ^ Name of tag to traverse in
+  => NameMatcher                -- ^ Name of tag to traverse in
   -> DomParserT Identity m a
   -> DomParserT g m (f a)
 inElemTrav n = inFilteredTrav deeper
   where
-    deeper = (DomPath [n],) . toListOf (folded . nodes . folded . _Element . el n)
+    deeper = (DomPath [_nmShow n],) . toListOf (folded . nodes . folded . _Element . elMatchName n)
 
 -- | Runs parser inside first children element with given name
 inElem
   :: (Monad m, Foldable g)
-  => Name
+  => NameMatcher
   -> DomParserT Identity m a
   -> DomParserT g m a
 inElem n = fmap runIdentity . inElemTrav n
 
 inElemAll
   :: (Monad m, Foldable g)
-  => Name
+  => NameMatcher
   -> DomParserT Identity m a
   -> DomParserT g m [a]
 inElemAll = inElemTrav
 
 inElemMay
   :: (Monad m, Foldable g)
-  => Name
+  => NameMatcher
   -> DomParserT Identity m a
   -> DomParserT g m (Maybe a)
 inElemMay = inElemTrav
 
 inElemNe
   :: (Monad m, Foldable g)
-  => Name
+  => NameMatcher
   -> DomParserT Identity m a
   -> DomParserT g m (NonEmpty a)
 inElemNe = inElemTrav
@@ -149,24 +149,24 @@ in given path.
 divePath
   :: forall m g a
    . (Monad m, Foldable g)
-  => DomPath
+  => [NameMatcher]
   -> DomParserT [] m a
   -> DomParserT g m a
 divePath path = magnify $ to modElems
   where
     modElems
       = over pdElements (toListOf $ folded . diver)
-      . over pdPath (<> path)
+      . over pdPath (<> DomPath (map _nmShow path))
     diver :: Fold Element Element
-    diver    = foldr (.) id $ map toDive $ unDomPath path
-    toDive n = nodes . folded . _Element . el n
+    diver    = foldr (.) id $ map toDive path
+    toDive n = nodes . folded . _Element . elMatchName n
 
 diveElem
   :: (Monad m, Foldable g)
-  => Name
+  => NameMatcher
   -> DomParserT [] m a
   -> DomParserT g m a
-diveElem p = divePath $ DomPath [p]
+diveElem p = divePath [p]
 
 -- | Ignore arbitrary current element if it conforms to predicate.
 ignoreElem
@@ -219,14 +219,14 @@ getCurrentName = view $ pdElements . to runIdentity . name
 -- document's element name.
 checkCurrentName
   :: (Monad m)
-  => Name
+  => NameMatcher
   -> DomParserT Identity m ()
 checkCurrentName n = do
   cn <- getCurrentName
-  unless (cn == n) $ do
+  unless ((n ^. nmMatch) cn) $ do
     p <- view pdPath
     let pinit = if null (unDomPath p) then [] else init $ unDomPath p
-    throwError $ ParserErrors [PENotFound $ DomPath $ pinit ++ [n]]
+    throwError $ ParserErrors [PENotFound $ DomPath $ pinit ++ [_nmShow n]]
   return ()
 
 -- | Get current content. If current element contains no content or
@@ -288,22 +288,28 @@ readContent = maybeReadContent $ readMaybe . T.unpack . T.strip
 -- | Retuns map of attributes of current element
 --
 -- @since 1.0.0
-getCurrentAttributes :: (Monad m) => DomParserT Identity m (M.Map Name Text)
+getCurrentAttributes
+  :: (Monad m)
+  => DomParserT Identity m (M.Map Name Text)
 getCurrentAttributes = view $ pdElements . to runIdentity . attrs
 
 -- | Returns element with given name or 'Nothing'
 --
 -- @since 1.0.0
-getCurrentAttribute :: (Monad m) => Name -> DomParserT Identity m (Maybe Text)
+getCurrentAttribute
+  :: (Monad m)
+  => NameMatcher
+  -> DomParserT Identity m (Maybe Text)
 getCurrentAttribute attrName
-  = preview $ pdElements . to runIdentity . attr attrName
+  = preview $ pdElements . to runIdentity . attrs . to M.toList
+  . traversed . filtered (views _1 (attrName ^. nmMatch)) . _2
 
 -- | Parses attribute with given name, throws error if attribute is not found.
 --
 -- @since 1.0.0
 parseAttribute
   :: (Monad m)
-  => Name
+  => NameMatcher
      -- ^ Attribute name
   -> (Text -> Either Text a)
      -- ^ Attribute content parser
@@ -318,7 +324,7 @@ parseAttribute attrName parser =
 -- @since 1.0.0
 parseAttributeMaybe
   :: (Monad m)
-  => Name
+  => NameMatcher
      -- ^ Attribute name
   -> (Text -> Either Text a)
      -- ^ Attribute content parser
