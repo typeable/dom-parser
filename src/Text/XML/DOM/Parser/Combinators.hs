@@ -24,27 +24,25 @@ module Text.XML.DOM.Parser.Combinators
   , checkCurrentName
     -- * Parsing element's content
   , parseContent
-  , readContent
-  , maybeReadContent
     -- * Parsing attributes
   , parseAttribute
   , parseAttributeMaybe
   ) where
 
-import           Control.Lens
-import           Control.Monad.Except
-import           Control.Monad.Reader
-import           Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.Map.Strict as M
-import           Data.Monoid
-import           Data.Text (Text)
-import qualified Data.Text as T
-import           Data.Traversable
-import           Data.Typeable
-import           Text.Read
-import           Text.XML
-import           Text.XML.DOM.Parser.Types
-import           Text.XML.Lens
+import Control.Lens
+import Control.Monad.Except
+import Control.Monad.Reader
+import Data.Foldable as F
+import Data.List as L
+import Data.List.NonEmpty (NonEmpty(..))
+import Data.Map.Strict as M
+import Data.Monoid
+import Data.Text as T
+import Data.Traversable
+import Text.XML
+import Text.XML.DOM.Parser.Common
+import Text.XML.DOM.Parser.Types
+import Text.XML.Lens
 
 
 -- | Generic function to traverse arbitrary inner cursors.
@@ -156,9 +154,9 @@ divePath path = magnify $ to modElems
   where
     modElems
       = over pdElements (toListOf $ folded . diver)
-      . over pdPath (<> DomPath (map _nmShow path))
+      . over pdPath (<> DomPath (L.map _nmShow path))
     diver :: Fold Element Element
-    diver    = foldr (.) id $ map toDive path
+    diver    = F.foldr (.) id $ L.map toDive path
     toDive n = nodes . folded . _Element . elMatchName n
 
 diveElem
@@ -190,7 +188,7 @@ ignoreEmpty
   -> DomParserT Identity m (Maybe a)
 ignoreEmpty = ignoreElem test
   where
-    test e = null $ e ^. nodes
+    test e = L.null $ e ^. nodes
 
 -- | If all current elements contains blank content, or contains nothing at all
 -- , then returns Nothing, else runs parser.
@@ -204,7 +202,7 @@ ignoreBlank = ignoreElem test
       let
         elems = e ^.. nodes . folded . _Element
         cont = mconcat $ e ^.. nodes . folded . _Content
-      in if | not $ null elems      -> False
+      in if | not $ L.null elems      -> False
             | T.null $ T.strip cont -> True
             | otherwise             -> False
 
@@ -225,7 +223,7 @@ checkCurrentName n = do
   cn <- getCurrentName
   unless ((n ^. nmMatch) cn) $ do
     p <- view pdPath
-    let pinit = if null (unDomPath p) then [] else init $ unDomPath p
+    let pinit = if L.null (unDomPath p) then [] else L.init $ unDomPath p
     throwError $ ParserErrors [PENotFound $ DomPath $ pinit ++ [_nmShow n]]
   return ()
 
@@ -242,8 +240,8 @@ getCurrentContent = do
     conts :: [Text]
     conts = nds ^.. folded . _Content
   return $ if
-    | not $ null els -> Nothing
-    | null conts     -> Nothing
+    | not $ L.null els -> Nothing
+    | L.null conts     -> Nothing
     | otherwise      -> Just $ mconcat conts
 
 -- | Parses content inside current tag. It expects current element set
@@ -259,31 +257,6 @@ parseContent parse = getCurrentContent >>= \case
   Just c  -> case parse c of
     Left e  -> throwParserError $ PEWrongFormat e
     Right a -> return a
-
--- | If reader returns 'Nothing' then resulting function returns 'Left
--- "error message"'
---
--- @since 1.0.0
-maybeReadContent
-  :: forall a
-   . (Typeable a)
-  => (Text -> Maybe a)
-   -- ^ Content or attribute reader
-  -> Text
-   -- ^ Content or attribute value
-  -> Either Text a
-maybeReadContent f t = maybe (Left msg) Right $ f t
-  where
-    msg = "Not readable " <> n <> ": " <> t
-    n = T.pack $ show $ typeRep (Proxy :: Proxy a)
-
--- | Tries to read given text to value using 'Read'. Useful to use
--- with 'parseContent' and 'parseAttribute'
-readContent
-  :: (Read a, Typeable a)
-  => Text
-  -> Either Text a
-readContent = maybeReadContent $ readMaybe . T.unpack . T.strip
 
 -- | Retuns map of attributes of current element
 --

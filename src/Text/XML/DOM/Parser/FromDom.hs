@@ -1,4 +1,4 @@
-module Text.XML.DOM.Parser.Class
+module Text.XML.DOM.Parser.FromDom
   ( -- * FromDom
     FromDom(..)
   , proxyFromDom
@@ -18,8 +18,6 @@ module Text.XML.DOM.Parser.Class
   , unitFromDom
   , voidFromDom
   , scientificFromDom
-    -- * FromAttribute
-  , FromAttribute(..)
   ) where
 
 import Control.Applicative
@@ -33,6 +31,7 @@ import Data.Typeable
 import Data.Void
 import Text.XML
 import Text.XML.DOM.Parser.Combinators
+import Text.XML.DOM.Parser.Common
 import Text.XML.DOM.Parser.Types
 import TypeFun.Data.List hiding (Union)
 
@@ -112,14 +111,6 @@ stringFromDom = parseContent $ Right . T.unpack
 charFromDom :: (Monad m) => DomParserT Identity m Char
 charFromDom = parseContent readChar
 
--- | Expects text to be single character
---
--- @since 1.0.0
-readChar :: Text -> Either Text Char
-readChar t = case T.unpack $ T.strip t of
-  [c] -> Right c
-  _   -> Left "Should have exactly one non-blank character"
-
 intFromDom :: (Monad m) => DomParserT Identity m Int
 intFromDom = parseContent readContent
 
@@ -143,19 +134,6 @@ scientificFromDom = parseContent readContent
 boolFromDom :: (Monad m) => DomParserT Identity m Bool
 boolFromDom = parseContent readBool
 
--- | @since 1.0.0
-readBool :: Text -> Either Text Bool
-readBool t =
-  let
-    lowt  = T.toLower $ T.strip t
-    tvals = ["y", "yes", "t", "true", "1"]
-    fvals = ["n", "no", "f", "false", "0"]
-  in if
-    | lowt `elem` tvals -> Right True
-    | lowt `elem` fvals -> Right False
-    | otherwise         ->
-        Left $ "Could not read " <> t <> " as Bool"
-
 -- | Always successfully parses any DOM to @()@
 unitFromDom :: (Monad m) => DomParserT Identity m  ()
 unitFromDom = pure ()
@@ -163,31 +141,3 @@ unitFromDom = pure ()
 -- | Never parses successfully. It is just 'mzero'
 voidFromDom :: (Monad m) => DomParserT Identity m  Void
 voidFromDom = empty
-
-class FromAttribute a where
-  fromAttribute
-    :: Text
-    -- ^ Attribute contents to parse
-    -> Either Text a
-    -- ^ Either error message or result
-
-instance FromAttribute () where
-  fromAttribute _ = Right ()
-
-instance FromAttribute Text where
-  fromAttribute = Right
-
-instance FromAttribute Char where
-  fromAttribute = readChar
-
-instance FromAttribute Int where
-  fromAttribute = readContent
-
-instance FromAttribute Integer where
-  fromAttribute = readContent
-
-instance (Typeable a, HasResolution a) => FromAttribute (Fixed a) where
-  fromAttribute = readContent
-
-instance FromAttribute Scientific where
-  fromAttribute = readContent

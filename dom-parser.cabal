@@ -57,8 +57,10 @@ library
                      , xml-conduit
                      , xml-lens
   exposed-modules: Text.XML.DOM.Parser
-                 , Text.XML.DOM.Parser.Class
                  , Text.XML.DOM.Parser.Combinators
+                 , Text.XML.DOM.Parser.Common
+                 , Text.XML.DOM.Parser.FromAttribute
+                 , Text.XML.DOM.Parser.FromDom
                  , Text.XML.DOM.Parser.Types
 
 test-suite test
