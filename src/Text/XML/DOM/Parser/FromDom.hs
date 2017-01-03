@@ -23,14 +23,12 @@ module Text.XML.DOM.Parser.FromDom
 import Control.Applicative
 import Control.Lens
 import Data.Fixed
-import Data.Monoid
 import Data.OpenUnion
 import Data.Scientific
 import Data.Text as T hiding (empty)
 import Data.Typeable
 import Data.Void
 import Text.XML
-import Text.XML.DOM.Parser.Combinators
 import Text.XML.DOM.Parser.Common
 import Text.XML.DOM.Parser.Types
 import TypeFun.Data.List hiding (Union)

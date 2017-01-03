@@ -15,27 +15,13 @@ module Text.XML.DOM.Parser.Combinators
   , ignoreElem
   , ignoreEmpty
   , ignoreBlank
-    -- * Getting current element's properties
-  , getCurrentName
-  , getCurrentContent
-  , getCurrentAttributes
-  , getCurrentAttribute
-    -- * Current element's checks
-  , checkCurrentName
-    -- * Parsing element's content
-  , parseContent
-    -- * Parsing attributes
-  , parseAttribute
-  , parseAttributeMaybe
   ) where
 
 import Control.Lens
-import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Foldable as F
 import Data.List as L
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.Map.Strict as M
 import Data.Monoid
 import Data.Text as T
 import Data.Traversable
@@ -68,7 +54,7 @@ traverseElems trav parser = do
 
 -- | Takes function filtering
 inFilteredTrav
-  :: (Monad m, Foldable g, DomTraversable f)
+  :: (Monad m, Foldable g, Buildable f)
   => ([Element] -> (DomPath, [Element]))
    -- ^ Function returning some filtered elements with path suffixes which will
    -- be appended to parser's state
@@ -78,12 +64,12 @@ inFilteredTrav deeper = traverseElems trav
   where
     trav e = do
       let (path, elems) = deeper e
-      case buildDomTraversable elems of
+      case build elems of
         Nothing -> throwParserError $ PENotFound . (<> path)
         Just tr -> return $ fmap (path,) tr
 
 inElemTrav
-  :: (Monad m, Foldable g, DomTraversable f)
+  :: (Monad m, Foldable g, Buildable f)
   => NameMatcher                -- ^ Name of tag to traverse in
   -> DomParserT Identity m a
   -> DomParserT g m (f a)
@@ -205,106 +191,3 @@ ignoreBlank = ignoreElem test
       in if | not $ L.null elems      -> False
             | T.null $ T.strip cont -> True
             | otherwise             -> False
-
--- | Returns name of current element.
---
--- @since 1.0.0
-getCurrentName :: (Monad m) => DomParserT Identity m Name
-getCurrentName = view $ pdElements . to runIdentity . name
-
--- | If name of current tag differs from first argument throws 'PENotFound' with
--- tag name replaced in last path's segment. Useful for checking root
--- document's element name.
-checkCurrentName
-  :: (Monad m)
-  => NameMatcher
-  -> DomParserT Identity m ()
-checkCurrentName n = do
-  cn <- getCurrentName
-  unless ((n ^. nmMatch) cn) $ do
-    p <- view pdPath
-    let pinit = if L.null (unDomPath p) then [] else L.init $ unDomPath p
-    throwError $ ParserErrors [PENotFound $ DomPath $ pinit ++ [_nmShow n]]
-  return ()
-
--- | Get current content. If current element contains no content or
--- have inner elements then Nothing returned
---
--- @since 1.0.0
-getCurrentContent :: (Monad m) => DomParserT Identity m (Maybe Text)
-getCurrentContent = do
-  nds <- view $ pdElements . to runIdentity . nodes
-  let
-    els :: [Element]
-    els = nds ^.. folded . _Element
-    conts :: [Text]
-    conts = nds ^.. folded . _Content
-  return $ if
-    | not $ L.null els -> Nothing
-    | L.null conts     -> Nothing
-    | otherwise      -> Just $ mconcat conts
-
--- | Parses content inside current tag. It expects current element set
--- consists of exactly ONE element. If current element does not
--- contains content or have other elements as childs then throws error
-parseContent
-  :: (Monad m)
-  => (Text -> Either Text a)
-     -- ^ Content parser, return error msg if value is not parsed
-  -> DomParserT Identity m a
-parseContent parse = getCurrentContent >>= \case
-  Nothing -> throwParserError PEContentNotFound
-  Just c  -> case parse c of
-    Left e  -> throwParserError $ PEWrongFormat e
-    Right a -> return a
-
--- | Retuns map of attributes of current element
---
--- @since 1.0.0
-getCurrentAttributes
-  :: (Monad m)
-  => DomParserT Identity m (M.Map Name Text)
-getCurrentAttributes = view $ pdElements . to runIdentity . attrs
-
--- | Returns element with given name or 'Nothing'
---
--- @since 1.0.0
-getCurrentAttribute
-  :: (Monad m)
-  => NameMatcher
-  -> DomParserT Identity m (Maybe Text)
-getCurrentAttribute attrName
-  = preview $ pdElements . to runIdentity . attrs . to M.toList
-  . traversed . filtered (views _1 (attrName ^. nmMatch)) . _2
-
--- | Parses attribute with given name, throws error if attribute is not found.
---
--- @since 1.0.0
-parseAttribute
-  :: (Monad m)
-  => NameMatcher
-     -- ^ Attribute name
-  -> (Text -> Either Text a)
-     -- ^ Attribute content parser
-  -> DomParserT Identity m a
-parseAttribute attrName parser =
-  parseAttributeMaybe attrName parser >>= \case
-    Nothing -> throwParserError $ PEAttributeNotFound attrName
-    Just a  -> return a
-
--- | Parses attribute with given name.
---
--- @since 1.0.0
-parseAttributeMaybe
-  :: (Monad m)
-  => NameMatcher
-     -- ^ Attribute name
-  -> (Text -> Either Text a)
-     -- ^ Attribute content parser
-  -> DomParserT Identity m (Maybe a)
-parseAttributeMaybe attrName parser =
-  getCurrentAttribute attrName >>= \case
-    Nothing   -> return Nothing
-    Just aval -> case parser aval of
-      Left err -> throwParserError $ PEAttributeWrongFormat attrName err
-      Right a  -> return $ Just a

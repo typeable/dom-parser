@@ -1,5 +1,5 @@
 module Text.XML.DOM.Parser.Types
-  ( -- * Local name
+  ( -- * Name matching
     NameMatcher(..)
   , nmMatch
   , nmShow
@@ -18,15 +18,12 @@ module Text.XML.DOM.Parser.Types
   , ParserData(..)
   , pdElements
   , pdPath
-    -- * Parser type
   , DomParserT
   , DomParser
   , runDomParserT
   , runDomParser
     -- * Auxiliary
-  , DomTraversable(..)
   , throwParserError
-  , throwWrongFormat
   ) where
 
 import Control.Exception
@@ -34,8 +31,6 @@ import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.CaseInsensitive as CI
-import Data.List.NonEmpty as NE
-import Data.Maybe
 import Data.String
 import Data.Text as T
 import GHC.Generics (Generic)
@@ -184,25 +179,6 @@ runDomParser
   -> Either ParserErrors a
 runDomParser doc par = runIdentity $ runDomParserT doc par
 
--- | Class of traversable functors which may be constructed from list. Or may
--- not.
-class Traversable f => DomTraversable f where
-  -- | If method return Nothing this means we can not build traversable from
-  -- given list. In this case combinator should fail traversing.
-  buildDomTraversable :: [a] ->  Maybe (f a)
-
-instance DomTraversable Identity where
-  buildDomTraversable = fmap Identity . listToMaybe
-
-instance DomTraversable [] where
-  buildDomTraversable = Just
-
-instance DomTraversable Maybe where
-  buildDomTraversable = Just . listToMaybe
-
-instance DomTraversable NonEmpty where
-  buildDomTraversable = NE.nonEmpty
-
 throwParserError
   :: (MonadError ParserErrors m, MonadReader (ParserData f) m)
   => (DomPath -> ParserError)
@@ -210,10 +186,3 @@ throwParserError
 throwParserError mkerr = do
   path <- view pdPath
   throwError $ ParserErrors $ [mkerr path]
-
--- | Throw 'PEWrongFormat' as very common case
-throwWrongFormat
-  :: (MonadError ParserErrors m, MonadReader (ParserData f) m)
-  => Text
-  -> m a
-throwWrongFormat err = throwParserError $ PEWrongFormat err
