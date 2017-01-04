@@ -14,7 +14,6 @@ module Text.XML.DOM.Parser.FromAttribute
   , unitFromAttribute
   , voidFromAttribute
   , scientificFromAttribute
-
   ) where
 
 import Data.Fixed
