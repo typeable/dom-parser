@@ -8,13 +8,11 @@ module Text.XML.DOM.Parser.FromDom
   , textFromDom
   , stringFromDom
   , charFromDom
-  , readChar
   , intFromDom
   , integerFromDom
   , doubleFromDom
   , fixedFromDom
   , boolFromDom
-  , readBool
   , unitFromDom
   , voidFromDom
   , scientificFromDom
@@ -47,35 +45,75 @@ class FromDom a where
 instance FromDom () where
   fromDom = unitFromDom
 
+-- | Always successfully parses any DOM to @()@
+unitFromDom :: (Monad m) => DomParserT Identity m  ()
+unitFromDom = pure ()
+
 instance FromDom Void where
   fromDom = voidFromDom
+
+-- | Never parses successfully. It is just 'empty'
+voidFromDom :: (Monad m) => DomParserT Identity m  Void
+voidFromDom = empty
 
 instance FromDom Text where
   fromDom = textFromDom
 
+textFromDom :: (Monad m) => DomParserT Identity m Text
+textFromDom = parseContent Right
+
 instance FromDom String where
   fromDom = stringFromDom
+
+stringFromDom :: (Monad m) => DomParserT Identity m String
+stringFromDom = parseContent $ Right . T.unpack
 
 instance FromDom Char where
   fromDom = charFromDom
 
+charFromDom :: (Monad m) => DomParserT Identity m Char
+charFromDom = parseContent readChar
+
 instance FromDom Int where
   fromDom = intFromDom
+
+intFromDom :: (Monad m) => DomParserT Identity m Int
+intFromDom = parseContent readContent
 
 instance FromDom Integer where
   fromDom = integerFromDom
 
+integerFromDom :: (Monad m) => DomParserT Identity m Integer
+integerFromDom = parseContent readContent
+
 instance FromDom Double where
   fromDom = doubleFromDom
+
+doubleFromDom :: (Monad m) => DomParserT Identity m Double
+doubleFromDom = parseContent readContent
 
 instance (HasResolution a, Typeable a) => FromDom (Fixed a) where
   fromDom = fixedFromDom
 
+fixedFromDom
+  :: (Monad m, Typeable a, HasResolution a)
+  => DomParserT Identity m (Fixed a)
+fixedFromDom = parseContent readContent
+
 instance FromDom Scientific where
   fromDom = scientificFromDom
 
+scientificFromDom :: Monad m => DomParserT Identity m Scientific
+scientificFromDom = parseContent readContent
+
 instance FromDom Bool where
   fromDom = boolFromDom
+
+-- | Expects content to be y, yes, t, true or 1 for True Values n, no,
+-- f, false or 0 for False. Case is not significant, blank characters
+-- are striped.
+boolFromDom :: (Monad m) => DomParserT Identity m Bool
+boolFromDom = parseContent readBool
 
 instance FromDom (Union '[]) where
   fromDom = empty
@@ -88,54 +126,14 @@ instance
   fromDom = (liftUnion <$> (proxyFromDom (Proxy :: Proxy a)))
     <|> (reUnion <$> (proxyFromDom (Proxy :: Proxy (Union as))))
 
-instance FromDom Element where
-  fromDom = elementFromDom
-
-elementFromDom :: (Monad m) => DomParserT Identity m Element
-elementFromDom = view $ pdElements . to runIdentity
-
 unionFromDom
   :: (Monad m, FromDom (Union as))
   => proxy as
   -> DomParserT Identity m (Union as)
 unionFromDom _ = fromDom
 
-textFromDom :: (Monad m) => DomParserT Identity m Text
-textFromDom = parseContent Right
+instance FromDom Element where
+  fromDom = elementFromDom
 
-stringFromDom :: (Monad m) => DomParserT Identity m String
-stringFromDom = parseContent $ Right . T.unpack
-
-charFromDom :: (Monad m) => DomParserT Identity m Char
-charFromDom = parseContent readChar
-
-intFromDom :: (Monad m) => DomParserT Identity m Int
-intFromDom = parseContent readContent
-
-integerFromDom :: (Monad m) => DomParserT Identity m Integer
-integerFromDom = parseContent readContent
-
-doubleFromDom :: (Monad m) => DomParserT Identity m Double
-doubleFromDom = parseContent readContent
-
-fixedFromDom
-  :: (Monad m, Typeable a, HasResolution a)
-  => DomParserT Identity m (Fixed a)
-fixedFromDom = parseContent readContent
-
-scientificFromDom :: Monad m => DomParserT Identity m Scientific
-scientificFromDom = parseContent readContent
-
--- | Expects content to be y, yes, t, true or 1 for True value. n, no,
--- f, false or 0 for False value. Case is not significant, blank
--- characters are striped.
-boolFromDom :: (Monad m) => DomParserT Identity m Bool
-boolFromDom = parseContent readBool
-
--- | Always successfully parses any DOM to @()@
-unitFromDom :: (Monad m) => DomParserT Identity m  ()
-unitFromDom = pure ()
-
--- | Never parses successfully. It is just 'mzero'
-voidFromDom :: (Monad m) => DomParserT Identity m  Void
-voidFromDom = empty
+elementFromDom :: (Monad m) => DomParserT Identity m Element
+elementFromDom = view $ pdElements . to runIdentity
