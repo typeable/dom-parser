@@ -21,8 +21,11 @@ import Data.Scientific
 import Data.Text as T
 import Data.Typeable
 import Data.Void
-import Text.XML.DOM.Parser.Common
+import Text.XML.DOM.Parser.Content
 
+-- | Class of types which can be get from attribute value. Method
+-- 'fromAttribute' is a convenient default parameter for
+-- 'parseAttribute'
 class FromAttribute a where
   fromAttribute
     :: Text

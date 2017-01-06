@@ -1,8 +1,6 @@
-module Text.XML.DOM.Parser.Common
-  ( -- * Buildable
-    Buildable(..)
-    -- * Content readers
-  , readBool
+module Text.XML.DOM.Parser.Content
+  ( -- * Content readers
+    readBool
   , readChar
     -- ** Reader constructors
   , maybeReadContent
@@ -24,9 +22,7 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Except
 import Data.List as L
-import Data.List.NonEmpty as NE
 import Data.Map.Strict as M
-import Data.Maybe
 import Data.Monoid
 import Data.Text as T
 import Data.Typeable
@@ -34,25 +30,6 @@ import Text.Read
 import Text.XML.DOM.Parser.Types
 import Text.XML.Lens
 
--- | Class of traversable functors which may be constructed from list. Or may
--- not.
-class Traversable f => Buildable f where
-  -- | If method return Nothing this means we can not build
-  -- traversable from given list. In this case 'inFilteredTrav' should
-  -- fail traversing.
-  build :: [a] ->  Maybe (f a)
-
-instance Buildable Identity where
-  build = fmap Identity . listToMaybe
-
-instance Buildable [] where
-  build = Just
-
-instance Buildable Maybe where
-  build = Just . listToMaybe
-
-instance Buildable NonEmpty where
-  build = NE.nonEmpty
 
 -- | @since 1.0.0
 readBool :: Text -> Either Text Bool
@@ -76,7 +53,8 @@ readChar t = case T.unpack $ T.strip t of
   _   -> Left "Should have exactly one non-blank character"
 
 -- | If reader returns 'Nothing' then resulting function returns 'Left
--- "error message"'
+-- "error message"'. 'Typeable' is used for generating usefull error
+-- message.
 --
 -- @since 1.0.0
 maybeReadContent
@@ -94,7 +72,8 @@ maybeReadContent f t = maybe (Left msg) Right $ f t
 
 
 -- | Tries to read given text to value using 'Read'. Useful to use
--- with 'parseContent' and 'parseAttribute'
+-- with 'parseContent' and 'parseAttribute'. Content is stripped
+-- before reading.
 readContent
   :: (Read a, Typeable a)
   => Text
@@ -186,7 +165,8 @@ parseAttribute attrName parser =
     Nothing -> throwParserError $ PEAttributeNotFound attrName
     Just a  -> return a
 
--- | Parses attribute with given name.
+-- | Parses attribute with given name. Returns Nothing if attribute is
+-- not found.
 --
 -- @since 1.0.0
 parseAttributeMaybe

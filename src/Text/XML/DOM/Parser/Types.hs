@@ -57,18 +57,24 @@ instance IsString NameMatcher where
 instance Show NameMatcher where
   show = T.unpack . _nmShow
 
+-- | Makes matcher which matches only local part of name igoring
+-- namespace and prefix. Local name matching is case sensitive.
 matchLocalName :: Text -> NameMatcher
 matchLocalName tname = NameMatcher
   { _nmMatch = \n -> nameLocalName n == tname
   , _nmShow  = tname
   }
 
+-- | Makes matcher which matches only local part of name igoring
+-- namespace and prefix. Local name matching is case insensitive. This
+-- is the most common case.
 matchCILocalName :: Text -> NameMatcher
 matchCILocalName tname = NameMatcher
   { _nmMatch = \n -> CI.mk (nameLocalName n) == CI.mk tname
   , _nmShow  = tname
   }
 
+-- | Makes matcher which match name by 'Eq' with given
 matchName :: Name -> NameMatcher
 matchName n = NameMatcher
   { _nmMatch = (== n)
@@ -87,12 +93,13 @@ data ParserError
   -- | Tag not found which should be.
   = PENotFound
     { _pePath :: DomPath
+      -- ^ Path of element error occured in
     }
 
   -- | Tag contents has wrong format, (could not read text to value)
   | PEWrongFormat
     { _peDetails :: Text
-    , _pePath    :: DomPath     -- ^ path of element
+    , _pePath    :: DomPath
     }
 
   -- | Could not parse attribute

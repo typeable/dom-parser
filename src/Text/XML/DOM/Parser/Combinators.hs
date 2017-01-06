@@ -2,7 +2,7 @@ module Text.XML.DOM.Parser.Combinators
   ( -- * Generic combinators to traverse descendants
     traverseElems
   , inFilteredTrav
-    -- * Using 'DomTraversable'
+    -- * Using 'Buildable'
   , inElemTrav
   , inElem
   , inElemAll
@@ -26,7 +26,7 @@ import Data.Monoid
 import Data.Text as T
 import Data.Traversable
 import Text.XML
-import Text.XML.DOM.Parser.Common
+import Text.XML.DOM.Parser.Buildable
 import Text.XML.DOM.Parser.Types
 import Text.XML.Lens
 
@@ -57,7 +57,7 @@ inFilteredTrav
   :: (Monad m, Foldable g, Buildable f)
   => ([Element] -> (DomPath, [Element]))
    -- ^ Function returning some filtered elements with path suffixes which will
-   -- be appended to parser's state
+   -- be appended to parser's state. The argument is a list of current elements.
   -> DomParserT Identity m a
   -> DomParserT g m (f a)
 inFilteredTrav deeper = traverseElems trav
