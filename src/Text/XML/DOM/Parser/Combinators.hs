@@ -31,15 +31,15 @@ import Text.XML.DOM.Parser.Types
 import Text.XML.Lens
 
 
--- | Generic function to traverse arbitrary inner cursors.
+-- | Generic function to traverse arbitrary inner elements.
 traverseElems
   :: (Monad m, Foldable g, Traversable f)
   => ([Element] -> DomParserT g m (f (DomPath, Element)))
      -- ^ Takes list of current elements and returns container with
-     -- pairs of subpath (relatively to current element) and element
+     -- pairs of subpath (relatively to current elements) and element
      -- to run parser in
   -> DomParserT Identity m a
-     -- ^ Parser will be runned for each element found in traversable
+     -- ^ Parser to run for each element found in traversable 'f'
   -> DomParserT g m (f a)
 traverseElems trav parser = do
   pd <- ask
@@ -49,15 +49,15 @@ traverseElems trav parser = do
       newpd = ParserData
         { _pdElements = Identity e
         , _pdPath     = pd ^. pdPath <> subpath }
-    -- type of reader has been changed, local won't work here
-    magnify (to $ const newpd) parser
+    lift $ runReaderT parser newpd
 
--- | Takes function filtering
+-- | Traverses elements located in same path using filtering function
 inFilteredTrav
   :: (Monad m, Foldable g, Buildable f)
   => ([Element] -> (DomPath, [Element]))
-   -- ^ Function returning some filtered elements with path suffixes which will
-   -- be appended to parser's state. The argument is a list of current elements.
+  -- ^ Takes list of current elements and returns some descendants
+  -- subset and path this descendants located at. Path is should be
+  -- same for all descendants and required for error message
   -> DomParserT Identity m a
   -> DomParserT g m (f a)
 inFilteredTrav deeper = traverseElems trav
@@ -70,38 +70,39 @@ inFilteredTrav deeper = traverseElems trav
 
 inElemTrav
   :: (Monad m, Foldable g, Buildable f)
-  => NameMatcher                -- ^ Name of tag to traverse in
+  => ElemMatcher                -- ^ Name of tag to traverse in
   -> DomParserT Identity m a
   -> DomParserT g m (f a)
 inElemTrav n = inFilteredTrav deeper
   where
-    deeper = (DomPath [_nmShow n],) . toListOf (folded . nodes . folded . _Element . elMatchName n)
+    elemsFold = folded . nodes . folded . _Element . elMatch n
+    deeper = (DomPath [_emShow n],) . toListOf elemsFold
 
 -- | Runs parser inside first children element with given name
 inElem
   :: (Monad m, Foldable g)
-  => NameMatcher
+  => ElemMatcher
   -> DomParserT Identity m a
   -> DomParserT g m a
 inElem n = fmap runIdentity . inElemTrav n
 
 inElemAll
   :: (Monad m, Foldable g)
-  => NameMatcher
+  => ElemMatcher
   -> DomParserT Identity m a
   -> DomParserT g m [a]
 inElemAll = inElemTrav
 
 inElemMay
   :: (Monad m, Foldable g)
-  => NameMatcher
+  => ElemMatcher
   -> DomParserT Identity m a
   -> DomParserT g m (Maybe a)
 inElemMay = inElemTrav
 
 inElemNe
   :: (Monad m, Foldable g)
-  => NameMatcher
+  => ElemMatcher
   -> DomParserT Identity m a
   -> DomParserT g m (NonEmpty a)
 inElemNe = inElemTrav
@@ -133,21 +134,21 @@ in given path.
 divePath
   :: forall m g a
    . (Monad m, Foldable g)
-  => [NameMatcher]
+  => [ElemMatcher]
   -> DomParserT [] m a
   -> DomParserT g m a
 divePath path = magnify $ to modElems
   where
     modElems
       = over pdElements (toListOf $ folded . diver)
-      . over pdPath (<> DomPath (L.map _nmShow path))
+      . over pdPath (<> DomPath (L.map _emShow path))
     diver :: Fold Element Element
     diver    = F.foldr (.) id $ L.map toDive path
-    toDive n = nodes . folded . _Element . elMatchName n
+    toDive n = nodes . folded . _Element . elMatch n
 
 diveElem
   :: (Monad m, Foldable g)
-  => NameMatcher
+  => ElemMatcher
   -> DomParserT [] m a
   -> DomParserT g m a
 diveElem p = divePath [p]
@@ -188,6 +189,6 @@ ignoreBlank = ignoreElem test
       let
         elems = e ^.. nodes . folded . _Element
         cont = mconcat $ e ^.. nodes . folded . _Content
-      in if | not $ L.null elems      -> False
+      in if | not $ L.null elems    -> False
             | T.null $ T.strip cont -> True
             | otherwise             -> False

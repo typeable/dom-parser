@@ -6,7 +6,12 @@ module Text.XML.DOM.Parser.Types
   , matchName
   , matchLocalName
   , matchCILocalName
-  , elMatchName
+    -- * Element matching
+  , ElemMatcher(..)
+  , emMatch
+  , emShow
+  , matchElemName
+  , elMatch
     -- * Parser internals
   , DomPath(..)
   , ParserError(..)
@@ -36,6 +41,30 @@ import Data.Text as T
 import GHC.Generics (Generic)
 import Text.XML
 import Text.XML.Lens
+
+-- | Arbitrary element matcher
+data ElemMatcher = ElemMatcher
+  { _emMatch :: Element -> Bool
+  , _emShow  :: Text
+  }
+
+makeLenses ''ElemMatcher
+
+instance IsString ElemMatcher where
+  fromString = matchElemName . fromString
+
+instance Show ElemMatcher where
+  show = T.unpack . _emShow
+
+-- | Match element by name
+matchElemName :: NameMatcher -> ElemMatcher
+matchElemName (NameMatcher matchName showName) = ElemMatcher
+  { _emMatch = views name matchName
+  , _emShow  = showName
+  }
+
+elMatch :: ElemMatcher -> Traversal' Element Element
+elMatch (ElemMatcher match _) = filtered match
 
 -- | Arbitrary name matcher. Match name any way you want, but
 -- considered to be used as comparator with some name with some rules
@@ -81,9 +110,8 @@ matchName n = NameMatcher
   , _nmShow  = nameLocalName n
   }
 
-elMatchName :: NameMatcher -> Traversal' Element Element
-elMatchName nm = filtered (views name $ nm ^. nmMatch)
-
+-- | Path some element should be found at. Path starts from the root
+-- element of the document. Errors are much more usefull with path.
 newtype DomPath = DomPath
   { unDomPath :: [Text]
   } deriving (Eq, Ord, Show, Monoid)
@@ -139,8 +167,9 @@ makePrisms ''ParserErrors
 instance Exception ParserErrors
 
 
-{- | Parser scope parser runs in. Functor argument is usually @Identity@ or
-@[]@.
+{- | Parser scope.
+
+Functor argument is usually @Identity@ or @[]@.
 
 If functor is @Identity@ then parser expects exactly ONE current element. This
 is common behavior for content parsers, or parsers expecting strict XML
