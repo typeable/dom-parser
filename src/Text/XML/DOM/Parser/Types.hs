@@ -1,6 +1,19 @@
 module Text.XML.DOM.Parser.Types
-  ( -- * Parser internals
-    DomPath
+  (-- * Element matching
+    ElemMatcher(..)
+  , emMatch
+  , emShow
+  , matchElemName
+  , elMatch
+    -- * Name matching
+  , NameMatcher(..)
+  , nmMatch
+  , nmShow
+  , matchName
+  , matchLocalName
+  , matchCILocalName
+    -- * Parser internals
+  , DomPath(..)
   , ParserError(..)
   , pePath
   , peDetails
@@ -10,47 +23,140 @@ module Text.XML.DOM.Parser.Types
   , ParserData(..)
   , pdElements
   , pdPath
-    -- * Parser type
   , DomParserT
   , DomParser
   , runDomParserT
   , runDomParser
     -- * Auxiliary
-  , DomTraversable(..)
   , throwParserError
-  , throwWrongFormat
   ) where
 
-import           Control.Exception
-import           Control.Lens
-import           Control.Monad.Except
-import           Control.Monad.Reader
-import           Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.List.NonEmpty as NE
-import           Data.Maybe
-import           Data.Text (Text)
-import           GHC.Generics (Generic)
-import           Text.XML
-import           Text.XML.Lens
+import Control.Exception
+import Control.Lens
+import Control.Monad.Except
+import Control.Monad.Reader
+import Data.CaseInsensitive as CI
+import Data.String
+import Data.Text as T
+import GHC.Generics (Generic)
+import Text.XML
+import Text.XML.Lens
 
-type DomPath = [Text]
+-- | Arbitrary element matcher
+--
+-- @since 2.0.0
+data ElemMatcher = ElemMatcher
+  { _emMatch :: Element -> Bool
+  , _emShow  :: Text
+    -- ^ Field for 'Show' instance and bulding usefull errors
+  }
+
+makeLenses ''ElemMatcher
+
+-- | Instance using instance of 'NameMatcher'
+instance IsString ElemMatcher where
+  fromString = matchElemName . fromString
+
+instance Show ElemMatcher where
+  show = T.unpack . _emShow
+
+-- | Match element by name
+--
+-- @since 2.0.0
+matchElemName :: NameMatcher -> ElemMatcher
+matchElemName (NameMatcher matchName showName) = ElemMatcher
+  { _emMatch = views name matchName
+  , _emShow  = showName
+  }
+
+-- | Match over elements
+--
+-- @since 2.0.0
+elMatch :: ElemMatcher -> Traversal' Element Element
+elMatch (ElemMatcher match _) = filtered match
+
+-- | Arbitrary name matcher. Match name any way you want, but
+-- considered to be used as comparator with some name with some rules
+--
+-- @since 2.0.0
+data NameMatcher = NameMatcher
+  { _nmMatch :: Name -> Bool
+    -- ^ Name matching function, usually should be simple comparsion
+    -- function takin in account only local name or other components
+    -- of 'Name'
+  , _nmShow :: Text
+    -- ^ Field for 'Show' instance and bulding usefull errors
+  }
+
+makeLenses ''NameMatcher
+
+-- | Instance use 'matchCILocalName' as most general and liberal
+-- matching strategy (while XML is often malformed).
+--
+-- @since 2.0.0
+instance IsString NameMatcher where
+  fromString = matchCILocalName . T.pack
+
+instance Show NameMatcher where
+  show = T.unpack . _nmShow
+
+-- | Makes matcher which matches only local part of name igoring
+-- namespace and prefix. Local name matching is case sensitive.
+--
+-- @since 2.0.0
+matchLocalName :: Text -> NameMatcher
+matchLocalName tname = NameMatcher
+  { _nmMatch = \n -> nameLocalName n == tname
+  , _nmShow  = tname
+  }
+
+-- | Makes matcher which matches only local part of name igoring
+-- namespace and prefix. Local name matching is case insensitive. This
+-- is the most common case.
+--
+-- @since 2.0.0
+matchCILocalName :: Text -> NameMatcher
+matchCILocalName tname = NameMatcher
+  { _nmMatch = \n -> CI.mk (nameLocalName n) == CI.mk tname
+  , _nmShow  = tname
+  }
+
+-- | Makes matcher which match name by 'Eq' with given
+--
+-- @since 2.0.0
+matchName :: Name -> NameMatcher
+matchName n = NameMatcher
+  { _nmMatch = (== n)
+  , _nmShow  = nameLocalName n
+  }
+
+-- | Path some element should be found at. Path starts from the root
+-- element of the document. Errors are much more usefull with path.
+newtype DomPath = DomPath
+  { unDomPath :: [Text]
+  } deriving (Eq, Ord, Show, Monoid)
 
 -- | DOM parser error description.
 data ParserError
   -- | Tag not found which should be.
   = PENotFound
     { _pePath :: DomPath
+      -- ^ Path of element error occured in
     }
 
-  -- | Tag contents has wrong format, (could not read text to value)
-  | PEWrongFormat
-    { _peDetails :: Text
-    , _pePath    :: DomPath     -- ^ path of element
+  -- | Expected attribute but not found
+  --
+  -- @since 1.0.0
+  | PEAttributeNotFound
+    { _peAttributeName :: NameMatcher
+    , _pePath          :: DomPath
     }
 
   -- | Could not parse attribute
+  --
+  -- @since 1.0.0
   | PEAttributeWrongFormat
-    { _peAttributeName :: Text
+    { _peAttributeName :: NameMatcher
     , _peDetails       :: Text
     , _pePath          :: DomPath
     }
@@ -60,17 +166,17 @@ data ParserError
     { _pePath :: DomPath
     }
 
-  -- | Expected attribute but not found
-  | PEAttributeNotFound
-    { _peAttributeName :: Text
-    , _pePath          :: DomPath
+  -- | Tag contents has wrong format, (could not read text to value)
+  | PEContentWrongFormat
+    { _peDetails :: Text
+    , _pePath    :: DomPath
     }
 
   -- | Some other error
   | PEOther
     { _peDetails :: Text
     , _pePath    :: DomPath
-    } deriving (Eq, Ord, Show, Generic)
+    } deriving (Show, Generic)
 
 makeLenses ''ParserError
 
@@ -78,15 +184,16 @@ instance Exception ParserError
 
 newtype ParserErrors = ParserErrors
   { unParserErrors :: [ParserError]
-  } deriving (Ord, Eq, Show, Monoid, Generic)
+  } deriving (Show, Monoid, Generic)
 
 makePrisms ''ParserErrors
 
 instance Exception ParserErrors
 
 
-{- | Parser scope parser runs in. Functor argument is usually @Identity@ or
-@[]@.
+{- | Parser scope.
+
+Functor argument is usually @Identity@ or @[]@.
 
 If functor is @Identity@ then parser expects exactly ONE current element. This
 is common behavior for content parsers, or parsers expecting strict XML
@@ -119,10 +226,11 @@ runDomParserT
   -> DomParserT Identity m a
   -> m (Either ParserErrors a)
 runDomParserT doc par =
-  let pd = ParserData
-        { _pdElements = doc ^. root . to pure
-        , _pdPath     = [doc ^. root . localName]
-        }
+  let
+    pd = ParserData
+      { _pdElements = doc ^. root . to pure
+      , _pdPath     = DomPath [doc ^. root . name . to nameLocalName]
+      }
   in runExceptT $ runReaderT par pd
 
 runDomParser
@@ -131,36 +239,10 @@ runDomParser
   -> Either ParserErrors a
 runDomParser doc par = runIdentity $ runDomParserT doc par
 
--- | Class of traversable functors which may be constructed from list. Or may
--- not.
-class Traversable f => DomTraversable f where
-  -- | If method return Nothing this means we can not build traversable from
-  -- given list. In this case combinator should fail traversing.
-  buildDomTraversable :: [a] ->  Maybe (f a)
-
-instance DomTraversable Identity where
-  buildDomTraversable = fmap Identity . listToMaybe
-
-instance DomTraversable [] where
-  buildDomTraversable = Just
-
-instance DomTraversable Maybe where
-  buildDomTraversable = Just . listToMaybe
-
-instance DomTraversable NonEmpty where
-  buildDomTraversable = NE.nonEmpty
-
 throwParserError
   :: (MonadError ParserErrors m, MonadReader (ParserData f) m)
-  => ([Text] -> ParserError)
+  => (DomPath -> ParserError)
   -> m a
 throwParserError mkerr = do
   path <- view pdPath
-  throwError $ ParserErrors [mkerr path]
-
--- | Throw 'PEWrongFormat' as very common case
-throwWrongFormat
-  :: (MonadError ParserErrors m, MonadReader (ParserData f) m)
-  => Text
-  -> m a
-throwWrongFormat err = throwParserError $ PEWrongFormat err
+  throwError $ ParserErrors $ [mkerr path]
