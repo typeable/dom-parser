@@ -68,9 +68,13 @@ inFilteredTrav deeper = traverseElems trav
         Nothing -> throwParserError $ PENotFound . (<> path)
         Just tr -> return $ fmap (path,) tr
 
+-- | Runs parser arbitrary times, depending on 'Buildable' instance of
+-- 'f'. For example if 'f' becomes 'NonEmpty' then 'inElemTrav' finds
+-- @one or more@ elements matched by given 'ElemMatcher' and run
+-- parser in each found element, then returns @NonEmpty a@ of results.
 inElemTrav
   :: (Monad m, Foldable g, Buildable f)
-  => ElemMatcher                -- ^ Name of tag to traverse in
+  => ElemMatcher                -- ^ Tag(s) matcher to traverse in
   -> DomParserT Identity m a
   -> DomParserT g m (f a)
 inElemTrav n = inFilteredTrav deeper
@@ -78,7 +82,7 @@ inElemTrav n = inFilteredTrav deeper
     elemsFold = folded . nodes . folded . _Element . elMatch n
     deeper = (DomPath [_emShow n],) . toListOf elemsFold
 
--- | Runs parser inside first children element with given name
+-- | Runs parser inside first children element matched by macher
 inElem
   :: (Monad m, Foldable g)
   => ElemMatcher
@@ -108,10 +112,10 @@ inElemNe
 inElemNe = inElemTrav
 
 {- | Dive given parser's current tags set into the given path. The @divePath
-["a", "b"]@ differs from @inElem "a" . inElem "b"@. Namely the first variant
+["a", "b"]@ differs from @inElem "a" $ inElem "b"@. Namely the first variant
 will not fail if occured tag "a" which does not contains tag "b". This
 behaviour is desireable when you dont want to parse whole XML and just want
-to pull tags in some path. The other difference is in traversing inner
+to pull tags located in some path. The other difference is in traversing inner
 elements. Consider this code
 
 @
@@ -129,6 +133,11 @@ which translates like: @a > b > c > fromDom@
 As you can see, inElem always takes first element and runs inner parser in this
 single element, unlike 'divePath' which runs inner parser @in all@ descendants
 in given path.
+
+Note also that 'divePath' takes parser parameterized by @[]@ not by
+'Identity'. This because when you dive using some path you will get a
+list of found elements and all these elements will be @current@ for
+parser.
 -}
 
 divePath

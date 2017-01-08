@@ -46,6 +46,7 @@ import Text.XML.Lens
 data ElemMatcher = ElemMatcher
   { _emMatch :: Element -> Bool
   , _emShow  :: Text
+    -- ^ Field for 'Show' instance and bulding usefull errors
   }
 
 makeLenses ''ElemMatcher
@@ -74,8 +75,7 @@ data NameMatcher = NameMatcher
     -- function takin in account only local name or other components
     -- of 'Name'
   , _nmShow :: Text
-    -- ^ How to show the name matcher, since there is no 'Read'
-    -- instance we can do it any way we want
+    -- ^ Field for 'Show' instance and bulding usefull errors
   }
 
 makeLenses ''NameMatcher

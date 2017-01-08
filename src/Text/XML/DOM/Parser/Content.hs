@@ -1,28 +1,22 @@
 module Text.XML.DOM.Parser.Content
-  ( -- * Content readers
-    readBool
-  , readChar
-    -- ** Reader constructors
-  , maybeReadContent
-  , readContent
+  (
+    -- * Parsing element's content
+    parseContent
     -- * Getting current element's properties
   , getCurrentName
   , getCurrentContent
-  , getCurrentAttributes
-  , getCurrentAttribute
   , checkCurrentName
-    -- * Parsing element's content
-  , parseContent
-    -- * Parsing attributes
-  , parseAttribute
-  , parseAttributeMaybe
+    -- * Internal
+  , maybeReadContent
+  , readContent
+  , readBool
+  , readChar
   ) where
 
 import Control.Lens
 import Control.Monad
 import Control.Monad.Except
 import Data.List as L
-import Data.Map.Strict as M
 import Data.Monoid
 import Data.Text as T
 import Data.Typeable
@@ -31,54 +25,19 @@ import Text.XML.DOM.Parser.Types
 import Text.XML.Lens
 
 
--- | @since 1.0.0
-readBool :: Text -> Either Text Bool
-readBool t =
-  let
-    lowt  = T.toLower $ T.strip t
-    tvals = ["y", "yes", "t", "true", "1"]
-    fvals = ["n", "no", "f", "false", "0"]
-  in if
-    | lowt `elem` tvals -> Right True
-    | lowt `elem` fvals -> Right False
-    | otherwise         ->
-        Left $ "Could not read " <> t <> " as Bool"
+-- | Parses content inside current tag. It expects current element set
+-- consists of exactly ONE element.
+parseContent
+  :: (Monad m)
+  => (Text -> Either Text a)
+     -- ^ Content parser, return error msg if value is not parsed
+  -> DomParserT Identity m a
+parseContent parse = getCurrentContent >>= \case
+  Nothing -> throwParserError PEContentNotFound
+  Just c  -> case parse c of
+    Left e  -> throwParserError $ PEWrongFormat e
+    Right a -> return a
 
--- | Expects text to be single character
---
--- @since 1.0.0
-readChar :: Text -> Either Text Char
-readChar t = case T.unpack $ T.strip t of
-  [c] -> Right c
-  _   -> Left "Should have exactly one non-blank character"
-
--- | If reader returns 'Nothing' then resulting function returns 'Left
--- "error message"'. 'Typeable' is used for generating usefull error
--- message.
---
--- @since 1.0.0
-maybeReadContent
-  :: forall a
-   . (Typeable a)
-  => (Text -> Maybe a)
-   -- ^ Content or attribute reader
-  -> Text
-   -- ^ Content or attribute value
-  -> Either Text a
-maybeReadContent f t = maybe (Left msg) Right $ f t
-  where
-    msg = "Not readable " <> n <> ": " <> t
-    n = T.pack $ show $ typeRep (Proxy :: Proxy a)
-
-
--- | Tries to read given text to value using 'Read'. Useful to use
--- with 'parseContent' and 'parseAttribute'. Content is stripped
--- before reading.
-readContent
-  :: (Read a, Typeable a)
-  => Text
-  -> Either Text a
-readContent = maybeReadContent $ readMaybe . T.unpack . T.strip
 
 -- | Returns name of current element.
 --
@@ -118,67 +77,52 @@ getCurrentContent = do
     | L.null conts     -> Nothing
     | otherwise      -> Just $ mconcat conts
 
--- | Parses content inside current tag. It expects current element set
--- consists of exactly ONE element.
-parseContent
-  :: (Monad m)
-  => (Text -> Either Text a)
-     -- ^ Content parser, return error msg if value is not parsed
-  -> DomParserT Identity m a
-parseContent parse = getCurrentContent >>= \case
-  Nothing -> throwParserError PEContentNotFound
-  Just c  -> case parse c of
-    Left e  -> throwParserError $ PEWrongFormat e
-    Right a -> return a
-
--- | Retuns map of attributes of current element
+-- | If reader returns 'Nothing' then resulting function returns 'Left
+-- "error message"'. 'Typeable' is used for generating usefull error
+-- message.
 --
 -- @since 1.0.0
-getCurrentAttributes
-  :: (Monad m)
-  => DomParserT Identity m (M.Map Name Text)
-getCurrentAttributes = view $ pdElements . to runIdentity . attrs
+maybeReadContent
+  :: forall a
+   . (Typeable a)
+  => (Text -> Maybe a)
+   -- ^ Content or attribute reader
+  -> Text
+   -- ^ Content or attribute value
+  -> Either Text a
+maybeReadContent f t = maybe (Left msg) Right $ f t
+  where
+    msg = "Not readable " <> n <> ": " <> t
+    n = T.pack $ show $ typeRep (Proxy :: Proxy a)
 
--- | Returns element with given name or 'Nothing'
+
+-- | Tries to read given text to value using 'Read'. Useful to use
+-- with 'parseContent' and 'parseAttribute'. Content is stripped
+-- before reading.
+readContent
+  :: (Read a, Typeable a)
+  => Text
+  -> Either Text a
+readContent = maybeReadContent $ readMaybe . T.unpack . T.strip
+
+
+-- | @since 1.0.0
+readBool :: Text -> Either Text Bool
+readBool t =
+  let
+    lowt  = T.toLower $ T.strip t
+    tvals = ["y", "yes", "t", "true", "1"]
+    fvals = ["n", "no", "f", "false", "0"]
+  in if
+    | lowt `elem` tvals -> Right True
+    | lowt `elem` fvals -> Right False
+    | otherwise         ->
+        Left $ "Could not read " <> t <> " as Bool"
+
+-- | Expects text to be single character
 --
 -- @since 1.0.0
-getCurrentAttribute
-  :: (Monad m)
-  => NameMatcher
-  -> DomParserT Identity m (Maybe Text)
-getCurrentAttribute attrName
-  = preview $ pdElements . to runIdentity . attrs . to M.toList
-  . traversed . filtered (views _1 (attrName ^. nmMatch)) . _2
-
--- | Parses attribute with given name, throws error if attribute is not found.
---
--- @since 1.0.0
-parseAttribute
-  :: (Monad m)
-  => NameMatcher
-     -- ^ Attribute name
-  -> (Text -> Either Text a)
-     -- ^ Attribute content parser
-  -> DomParserT Identity m a
-parseAttribute attrName parser =
-  parseAttributeMaybe attrName parser >>= \case
-    Nothing -> throwParserError $ PEAttributeNotFound attrName
-    Just a  -> return a
-
--- | Parses attribute with given name. Returns Nothing if attribute is
--- not found.
---
--- @since 1.0.0
-parseAttributeMaybe
-  :: (Monad m)
-  => NameMatcher
-     -- ^ Attribute name
-  -> (Text -> Either Text a)
-     -- ^ Attribute content parser
-  -> DomParserT Identity m (Maybe a)
-parseAttributeMaybe attrName parser =
-  getCurrentAttribute attrName >>= \case
-    Nothing   -> return Nothing
-    Just aval -> case parser aval of
-      Left err -> throwParserError $ PEAttributeWrongFormat attrName err
-      Right a  -> return $ Just a
+readChar :: Text -> Either Text Char
+readChar t = case T.unpack $ T.strip t of
+  [c] -> Right c
+  _   -> Left "Should have exactly one non-blank character"
