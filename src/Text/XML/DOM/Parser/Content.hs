@@ -35,7 +35,7 @@ parseContent
 parseContent parse = getCurrentContent >>= \case
   Nothing -> throwParserError PEContentNotFound
   Just c  -> case parse c of
-    Left e  -> throwParserError $ PEWrongFormat e
+    Left e  -> throwParserError $ PEContentWrongFormat e
     Right a -> return a
 
 

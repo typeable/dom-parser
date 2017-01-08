@@ -38,7 +38,8 @@ proxyFromDom
   -> DomParserT Identity m a
 proxyFromDom _ = fromDom
 
--- | Class of types which can be parsed from single XML element.
+-- | Class of types which can be parsed from single XML element. The
+-- method 'fromDom' is convenient default to use with 'inElem'
 class FromDom a where
   fromDom :: (Monad m) => DomParserT Identity m a
 

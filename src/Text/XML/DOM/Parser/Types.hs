@@ -1,17 +1,17 @@
 module Text.XML.DOM.Parser.Types
-  ( -- * Name matching
-    NameMatcher(..)
+  (-- * Element matching
+    ElemMatcher(..)
+  , emMatch
+  , emShow
+  , matchElemName
+  , elMatch
+    -- * Name matching
+  , NameMatcher(..)
   , nmMatch
   , nmShow
   , matchName
   , matchLocalName
   , matchCILocalName
-    -- * Element matching
-  , ElemMatcher(..)
-  , emMatch
-  , emShow
-  , matchElemName
-  , elMatch
     -- * Parser internals
   , DomPath(..)
   , ParserError(..)
@@ -43,6 +43,8 @@ import Text.XML
 import Text.XML.Lens
 
 -- | Arbitrary element matcher
+--
+-- @since 2.0.0
 data ElemMatcher = ElemMatcher
   { _emMatch :: Element -> Bool
   , _emShow  :: Text
@@ -51,6 +53,7 @@ data ElemMatcher = ElemMatcher
 
 makeLenses ''ElemMatcher
 
+-- | Instance using instance of 'NameMatcher'
 instance IsString ElemMatcher where
   fromString = matchElemName . fromString
 
@@ -58,17 +61,24 @@ instance Show ElemMatcher where
   show = T.unpack . _emShow
 
 -- | Match element by name
+--
+-- @since 2.0.0
 matchElemName :: NameMatcher -> ElemMatcher
 matchElemName (NameMatcher matchName showName) = ElemMatcher
   { _emMatch = views name matchName
   , _emShow  = showName
   }
 
+-- | Match over elements
+--
+-- @since 2.0.0
 elMatch :: ElemMatcher -> Traversal' Element Element
 elMatch (ElemMatcher match _) = filtered match
 
 -- | Arbitrary name matcher. Match name any way you want, but
 -- considered to be used as comparator with some name with some rules
+--
+-- @since 2.0.0
 data NameMatcher = NameMatcher
   { _nmMatch :: Name -> Bool
     -- ^ Name matching function, usually should be simple comparsion
@@ -80,6 +90,10 @@ data NameMatcher = NameMatcher
 
 makeLenses ''NameMatcher
 
+-- | Instance use 'matchCILocalName' as most general and liberal
+-- matching strategy (while XML is often malformed).
+--
+-- @since 2.0.0
 instance IsString NameMatcher where
   fromString = matchCILocalName . T.pack
 
@@ -88,6 +102,8 @@ instance Show NameMatcher where
 
 -- | Makes matcher which matches only local part of name igoring
 -- namespace and prefix. Local name matching is case sensitive.
+--
+-- @since 2.0.0
 matchLocalName :: Text -> NameMatcher
 matchLocalName tname = NameMatcher
   { _nmMatch = \n -> nameLocalName n == tname
@@ -97,6 +113,8 @@ matchLocalName tname = NameMatcher
 -- | Makes matcher which matches only local part of name igoring
 -- namespace and prefix. Local name matching is case insensitive. This
 -- is the most common case.
+--
+-- @since 2.0.0
 matchCILocalName :: Text -> NameMatcher
 matchCILocalName tname = NameMatcher
   { _nmMatch = \n -> CI.mk (nameLocalName n) == CI.mk tname
@@ -104,6 +122,8 @@ matchCILocalName tname = NameMatcher
   }
 
 -- | Makes matcher which match name by 'Eq' with given
+--
+-- @since 2.0.0
 matchName :: Name -> NameMatcher
 matchName n = NameMatcher
   { _nmMatch = (== n)
@@ -124,13 +144,17 @@ data ParserError
       -- ^ Path of element error occured in
     }
 
-  -- | Tag contents has wrong format, (could not read text to value)
-  | PEWrongFormat
-    { _peDetails :: Text
-    , _pePath    :: DomPath
+  -- | Expected attribute but not found
+  --
+  -- @since 1.0.0
+  | PEAttributeNotFound
+    { _peAttributeName :: NameMatcher
+    , _pePath          :: DomPath
     }
 
   -- | Could not parse attribute
+  --
+  -- @since 1.0.0
   | PEAttributeWrongFormat
     { _peAttributeName :: NameMatcher
     , _peDetails       :: Text
@@ -142,10 +166,10 @@ data ParserError
     { _pePath :: DomPath
     }
 
-  -- | Expected attribute but not found
-  | PEAttributeNotFound
-    { _peAttributeName :: NameMatcher
-    , _pePath          :: DomPath
+  -- | Tag contents has wrong format, (could not read text to value)
+  | PEContentWrongFormat
+    { _peDetails :: Text
+    , _pePath    :: DomPath
     }
 
   -- | Some other error

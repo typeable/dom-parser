@@ -26,6 +26,8 @@ import Text.XML.DOM.Parser.Content
 -- | Class of types which can be get from attribute value. Method
 -- 'fromAttribute' is a convenient default parameter for
 -- 'parseAttribute'
+--
+-- @since 2.0.0
 class FromAttribute a where
   fromAttribute
     :: Text
