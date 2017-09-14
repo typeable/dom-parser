@@ -4,7 +4,6 @@ module Text.XML.DOM.Parser.FromDom
   , proxyFromDom
     -- * Explicit methods for convenience
   , elementFromDom
-  , unionFromDom
   , textFromDom
   , stringFromDom
   , charFromDom
@@ -21,7 +20,6 @@ module Text.XML.DOM.Parser.FromDom
 import Control.Applicative
 import Control.Lens
 import Data.Fixed
-import Data.OpenUnion
 import Data.Scientific
 import Data.Text as T hiding (empty)
 import Data.Typeable
@@ -29,7 +27,6 @@ import Data.Void
 import Text.XML
 import Text.XML.DOM.Parser.Content
 import Text.XML.DOM.Parser.Types
-import TypeFun.Data.List hiding (Union)
 
 proxyFromDom
   :: forall proxy m a
@@ -115,23 +112,6 @@ instance FromDom Bool where
 -- are striped.
 boolFromDom :: (Monad m) => DomParserT Identity m Bool
 boolFromDom = parseContent readBool
-
-instance FromDom (Union '[]) where
-  fromDom = empty
-
-instance
-  ( Typeable a, FromDom a, FromDom (Union as)
-  , SubList as (a ': as) )
-  => FromDom (Union (a ': as)) where
-  -- fromDom :: forall m. (DomParserMonad m) => m a
-  fromDom = (liftUnion <$> (proxyFromDom (Proxy :: Proxy a)))
-    <|> (reUnion <$> (proxyFromDom (Proxy :: Proxy (Union as))))
-
-unionFromDom
-  :: (Monad m, FromDom (Union as))
-  => proxy as
-  -> DomParserT Identity m (Union as)
-unionFromDom _ = fromDom
 
 instance FromDom Element where
   fromDom = elementFromDom

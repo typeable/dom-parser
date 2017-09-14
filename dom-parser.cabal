@@ -48,12 +48,10 @@ library
                      , containers
                      , lens
                      , mtl
-                     , open-union >= 0.2
                      , scientific
                      , semigroups
                      , text
                      , transformers
-                     , type-fun
                      , xml-conduit
                      , xml-lens
   exposed-modules: Text.XML.DOM.Parser
