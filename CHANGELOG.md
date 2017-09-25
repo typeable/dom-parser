@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 3.0.0
+
+* GHC 8 compatible release
+
+### Removed
+
+* `open-union` dependency
+
 ## 2.0.0
 
 ### Added
