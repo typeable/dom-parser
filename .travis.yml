@@ -4,6 +4,11 @@ sudo: false
 # Do not choose a language; we provide our own build tools.
 language: generic
 
+env:
+  - STACK_YAML=stack.yaml
+  - STACK_YAML=ghc-802.yaml
+  - STACK_YAML=ghc-821.yaml
+
 # Caching so the next build will be fast too.
 cache:
   directories:
@@ -21,10 +26,6 @@ before_install:
 - export PATH=$HOME/.local/bin:$PATH
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 
-install:
-# Build dependencies
-- stack --no-terminal --install-ghc build --only-dependencies
-
 script:
 # Build the package, its tests, and its docs and run the tests
-- stack --no-terminal test --haddock --no-haddock-deps
+- stack --no-terminal --install-ghc test --haddock --no-haddock-deps
