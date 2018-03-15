@@ -5,6 +5,7 @@
 ### Added
 
 * Additional builds with GHC 8.0.2 and 8.2.1
+* Compatibility with GHC 8.4.1
 
 ## 3.0.0
 
