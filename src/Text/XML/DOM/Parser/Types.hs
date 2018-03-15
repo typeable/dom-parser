@@ -36,6 +36,7 @@ import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.CaseInsensitive as CI
+import Data.Semigroup
 import Data.String
 import Data.Text as T
 import GHC.Generics (Generic)
@@ -134,7 +135,7 @@ matchName n = NameMatcher
 -- element of the document. Errors are much more usefull with path.
 newtype DomPath = DomPath
   { unDomPath :: [Text]
-  } deriving (Eq, Ord, Show, Monoid)
+  } deriving (Eq, Ord, Show, Semigroup, Monoid)
 
 -- | DOM parser error description.
 data ParserError
@@ -184,7 +185,7 @@ instance Exception ParserError
 
 newtype ParserErrors = ParserErrors
   { unParserErrors :: [ParserError]
-  } deriving (Show, Monoid, Generic)
+  } deriving (Show, Semigroup, Monoid, Generic)
 
 makePrisms ''ParserErrors
 
