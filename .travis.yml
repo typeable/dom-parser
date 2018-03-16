@@ -10,10 +10,6 @@ env:
   - STACK_YAML=ghc-822.yaml
   - STACK_YAML=ghc-841.yaml
 
-matrix:
-  allow_failures:
-    - env: STACK_YAML=ghc-841.yaml
-
 # Caching so the next build will be fast too.
 cache:
   directories:
