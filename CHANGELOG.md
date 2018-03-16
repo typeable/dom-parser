@@ -2,6 +2,8 @@
 
 ## HEAD
 
+## 3.1.0
+
 ### Added
 
 * Additional builds with GHC 8.0.2 and 8.2.1

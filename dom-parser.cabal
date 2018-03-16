@@ -1,5 +1,5 @@
 name:                dom-parser
-version:             3.0.0
+version:             3.1.0
 synopsis:            Simple monadic DOM parser
 license:             MIT
 license-file:        LICENSE
