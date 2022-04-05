@@ -114,8 +114,8 @@ readBool t =
     tvals = ["y", "yes", "t", "true", "1"]
     fvals = ["n", "no", "f", "false", "0"]
   in if
-    | lowt `elem` tvals -> Right True
-    | lowt `elem` fvals -> Right False
+    | lowt `L.elem` tvals -> Right True
+    | lowt `L.elem` fvals -> Right False
     | otherwise         ->
         Left $ "Could not read " <> t <> " as Bool"
 
