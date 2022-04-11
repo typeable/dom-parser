@@ -89,8 +89,6 @@ data NameMatcher = NameMatcher
     -- ^ Field for 'Show' instance and bulding usefull errors
   }
 
-makeLenses ''NameMatcher
-
 -- | Instance use 'matchCILocalName' as most general and liberal
 -- matching strategy (while XML is often malformed).
 --
@@ -121,6 +119,8 @@ matchCILocalName tname = NameMatcher
   { _nmMatch = \n -> CI.mk (nameLocalName n) == CI.mk tname
   , _nmShow  = tname
   }
+
+makeLenses ''NameMatcher
 
 -- | Makes matcher which match name by 'Eq' with given
 --
