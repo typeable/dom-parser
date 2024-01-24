@@ -1,0 +1,9 @@
+resolver: lts-22.6
+
+extra-deps:
+#  - xml-conduit-writer-0.1.1.4
+  - git: https://github.com/typeable/xml-conduit-writer.git
+    commit: fd202f1749e1ed28fbd9143f49c3c01ab6ef563d
+
+nix:
+  packages: [zlib]
