@@ -2,6 +2,10 @@
 
 ## HEAD
 
+### Added
+
+* Text.XML.Soap module with XmlEnvelope stuff in it.
+
 ## 3.1.0
 
 ### Added
