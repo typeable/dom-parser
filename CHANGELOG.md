@@ -2,9 +2,16 @@
 
 ## HEAD
 
+## 3.2.0
+
 ### Added
 
 * Text.XML.Soap module with XmlEnvelope stuff in it.
+* GHC 9 compatibility.
+
+### Removed
+
+* Old stackage files.
 
 ## 3.1.0
 
