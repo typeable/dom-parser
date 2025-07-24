@@ -20,6 +20,7 @@ import Data.List as L
 import Data.Monoid
 import Data.Text as T
 import Data.Typeable
+import Prelude as P
 import Text.Read
 import Text.XML.DOM.Parser.Types
 import Text.XML.Lens
@@ -93,7 +94,7 @@ maybeReadContent
 maybeReadContent f t = maybe (Left msg) Right $ f t
   where
     msg = "Not readable " <> n <> ": " <> t
-    n = T.pack $ show $ typeRep (Proxy :: Proxy a)
+    n = T.pack $ P.show $ typeRep (Proxy :: Proxy a)
 
 
 -- | Tries to read given text to value using 'Read'. Useful to use
