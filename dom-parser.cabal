@@ -48,7 +48,7 @@ library
                      , case-insensitive
                      , containers
                      , lens
-                     , mtl
+                     , mtl < 2.3 || > 2.3
                      , scientific
                      , text
                      , transformers
