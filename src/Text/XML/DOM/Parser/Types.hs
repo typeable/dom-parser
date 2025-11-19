@@ -36,7 +36,6 @@ import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.CaseInsensitive as CI
-import Data.Semigroup
 import Data.String
 import Data.Text as T
 import GHC.Generics (Generic)

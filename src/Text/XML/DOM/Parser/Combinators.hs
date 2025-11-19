@@ -22,7 +22,6 @@ import Control.Monad.Reader
 import Data.Foldable as F
 import Data.List as L
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.Monoid
 import Data.Text as T
 import Data.Traversable
 import Text.XML
