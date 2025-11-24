@@ -44,13 +44,12 @@ library
                      , TypeFamilies
                      , TypeOperators
                      , UndecidableInstances
-  build-depends:       base >= 4.7 && < 5
+  build-depends:       base >= 4.11 && < 5
                      , case-insensitive
                      , containers
                      , lens
-                     , mtl
+                     , mtl < 2.3 || > 2.3
                      , scientific
-                     , semigroups
                      , text
                      , transformers
                      , xml-conduit
